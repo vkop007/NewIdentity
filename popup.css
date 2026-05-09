@@ -151,6 +151,24 @@ button {
   display: block;
 }
 
+.tab-panel[data-panel="settings"].active {
+  display: grid;
+  gap: 10px;
+}
+
+.tab-panel[data-panel="settings"] .provider-card,
+.tab-panel[data-panel="settings"] .control {
+  margin-bottom: 0;
+}
+
+.tab-panel[data-panel="settings"] .switch-card {
+  margin-top: 0;
+}
+
+.tab-panel[data-panel="settings"] .primary-action.full {
+  margin-top: 4px;
+}
+
 .control {
   display: grid;
   gap: 8px;
@@ -592,14 +610,51 @@ button {
   line-height: 1.35;
 }
 
-.switch-card input {
-  width: 20px;
-  height: 20px;
-  accent-color: var(--primary);
+.switch-card input[type="checkbox"] {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-content: center;
+  margin: 0;
+  border: 2px solid var(--line);
+  border-radius: 7px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.switch-card input[type="checkbox"]::after {
+  width: 6px;
+  height: 11px;
+  border: solid #fff;
+  border-width: 0 3px 3px 0;
+  content: "";
+  transform: rotate(45deg) scale(0);
+  transform-origin: center;
+  transition: transform 120ms ease;
+}
+
+.switch-card input[type="checkbox"]:checked {
+  border-color: var(--primary);
+  background: var(--primary);
+  box-shadow: 0 8px 18px rgba(97, 87, 244, 0.22);
+}
+
+.switch-card input[type="checkbox"]:checked::after {
+  transform: rotate(45deg) scale(1);
+}
+
+.switch-card input[type="checkbox"]:focus-visible {
+  outline: 3px solid rgba(97, 87, 244, 0.22);
+  outline-offset: 3px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --bg: #111217;
     --surface: #191a22;
     --surface-strong: #222338;
