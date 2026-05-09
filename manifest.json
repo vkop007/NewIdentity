@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "New Identity",
+  "description": "Generate test identities with a real temporary inbox and fill forms without paid APIs.",
+  "version": "1.0.0",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Generate fake identity"
+  },
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "host_permissions": [
+    "https://api.catchmail.io/*",
+    "https://api.mail.tm/*"
+  ]
+}

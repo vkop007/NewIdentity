@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>New Identity</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="app-header">
+        <div class="brand-orb" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 2.75 19.5 7v10L12 21.25 4.5 17V7L12 2.75Z" />
+            <path d="M12 7v10M7.7 9.4l8.6 5.2M16.3 9.4l-8.6 5.2" />
+          </svg>
+        </div>
+        <div class="header-copy">
+          <span>Generate</span>
+          <h1>Fake Identity</h1>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Extension sections">
+        <button class="tab active" data-tab="home" type="button">Home</button>
+        <button class="tab" data-tab="messages" type="button">Inbox</button>
+        <button class="tab" data-tab="settings" type="button">Settings</button>
+      </nav>
+
+      <section class="tab-panel active" data-panel="home">
+        <label class="control">
+          <span>Country</span>
+          <select id="countrySelect"></select>
+        </label>
+
+        <section class="identity-card" aria-live="polite">
+          <div class="field-grid">
+            <button class="identity-field" data-copy="firstName" type="button">
+              <span>First name</span>
+              <strong id="firstName">-</strong>
+            </button>
+            <button class="identity-field" data-copy="lastName" type="button">
+              <span>Last name</span>
+              <strong id="lastName">-</strong>
+            </button>
+          </div>
+
+          <button class="identity-field wide" data-copy="fullName" type="button">
+            <span>Full name</span>
+            <strong id="fullName">-</strong>
+          </button>
+          <button class="identity-field wide highlight" data-copy="email" type="button">
+            <span>Email</span>
+            <strong id="email">-</strong>
+          </button>
+
+          <div class="field-grid">
+            <button class="identity-field" data-copy="password" type="button">
+              <span>Password</span>
+              <strong id="password">-</strong>
+            </button>
+            <button class="identity-field" data-copy="confirmPassword" type="button">
+              <span>Confirm password</span>
+              <strong id="confirmPassword">-</strong>
+            </button>
+          </div>
+
+          <button class="identity-field wide" data-copy="phone" type="button">
+            <span>Phone</span>
+            <strong id="phone">-</strong>
+          </button>
+          <button class="identity-field wide" data-copy="address1" type="button">
+            <span>Address</span>
+            <strong id="address1">-</strong>
+          </button>
+
+          <div class="field-grid">
+            <button class="identity-field" data-copy="city" type="button">
+              <span>City</span>
+              <strong id="city">-</strong>
+            </button>
+            <button class="identity-field" data-copy="postalCode" type="button">
+              <span>Postal code</span>
+              <strong id="postalCode">-</strong>
+            </button>
+          </div>
+
+          <button class="identity-field wide" data-copy="state" type="button">
+            <span>State</span>
+            <strong id="state">-</strong>
+          </button>
+        </section>
+
+        <div class="action-row">
+          <button class="primary-action" id="generateBtn" type="button">New Generate</button>
+          <button class="secondary-action" id="copyAllBtn" type="button">Copy all</button>
+          <button class="secondary-action" id="fillPageBtn" type="button">Fill page</button>
+        </div>
+        <p class="status-line" id="statusLine" data-status-line>Real temporary inbox powered by Catchmail.</p>
+      </section>
+
+      <section class="tab-panel" data-panel="messages">
+        <div class="section-heading">
+          <div>
+            <span>Inbox</span>
+            <h2>Temporary mailbox</h2>
+          </div>
+          <button class="ghost-button" id="refreshInboxBtn" type="button">Check mail</button>
+        </div>
+
+        <section class="inbox-card">
+          <div class="inbox-address-row">
+            <div>
+              <span id="mailboxState">Live mailbox</span>
+              <strong id="inboxAddress">-</strong>
+            </div>
+            <button class="ghost-button" id="copyInboxBtn" type="button">Copy</button>
+          </div>
+          <div class="inbox-list" id="inboxList"></div>
+          <p class="provider-note">
+            Inbox service by <a href="https://catchmail.io/" rel="noreferrer" target="_blank">Catchmail</a>.
+          </p>
+        </section>
+
+        <div class="section-heading compact">
+          <div>
+            <span>Snippets</span>
+            <h2>Profile copy blocks</h2>
+          </div>
+        </div>
+        <div class="message-list" id="messageList"></div>
+
+        <div class="section-heading compact">
+          <div>
+            <span>History</span>
+            <h2>Recent identities</h2>
+          </div>
+          <button class="ghost-button danger" id="clearHistoryBtn" type="button">Clear</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="tab-panel" data-panel="settings">
+        <div class="provider-card">
+          <span>Email provider</span>
+          <strong>Catchmail temporary inbox</strong>
+          <small>New identities use a real disposable inbox. Mail.tm is kept as a backup provider.</small>
+        </div>
+
+        <label class="control">
+          <span>Name style</span>
+          <select id="nameStyleSelect">
+            <option value="any">Any</option>
+            <option value="female">Female</option>
+            <option value="male">Male</option>
+          </select>
+        </label>
+
+        <label class="switch-card">
+          <span>
+            <strong>Save history</strong>
+            <small>Keep recent identities in Chrome local storage.</small>
+          </span>
+          <input id="saveHistoryToggle" type="checkbox" />
+        </label>
+
+        <label class="switch-card">
+          <span>
+            <strong>Auto-copy profile</strong>
+            <small>Copy the full profile after each generation.</small>
+          </span>
+          <input id="autoCopyToggle" type="checkbox" />
+        </label>
+
+        <label class="switch-card">
+          <span>
+            <strong>Auto-fill pages</strong>
+            <small>Ask once for website access, then fill empty matching form fields automatically.</small>
+          </span>
+          <input id="autoFillToggle" type="checkbox" />
+        </label>
+
+        <button class="primary-action full" id="saveSettingsBtn" type="button">Save settings</button>
+        <p class="status-line" data-status-line>Identity data is local. Inbox refresh calls Catchmail or Mail.tm.</p>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
