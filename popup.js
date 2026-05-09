@@ -519,6 +519,7 @@ function bindEvents() {
   document.querySelector('#fillPageBtn').addEventListener('click', fillCurrentPage);
   document.querySelector('#saveSettingsBtn').addEventListener('click', saveSettingsFromControls);
   document.querySelector('#refreshInboxBtn').addEventListener('click', () => refreshInbox(true));
+  document.querySelector('#refreshInboxInlineBtn').addEventListener('click', () => refreshInbox(true));
   document.querySelector('#copyInboxBtn').addEventListener('click', copyInboxAddress);
   document.querySelector('#clearHistoryBtn').addEventListener('click', clearHistory);
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);

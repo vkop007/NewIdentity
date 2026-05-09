@@ -105,7 +105,7 @@
             <span>Inbox</span>
             <h2>Temporary mailbox</h2>
           </div>
-          <button class="ghost-button" id="refreshInboxBtn" type="button">Check mail</button>
+          <button class="ghost-button" id="refreshInboxBtn" type="button">Refresh</button>
         </div>
 
         <section class="inbox-card">
@@ -114,7 +114,10 @@
               <span id="mailboxState">Live mailbox</span>
               <strong id="inboxAddress">-</strong>
             </div>
-            <button class="ghost-button" id="copyInboxBtn" type="button">Copy</button>
+            <div class="inbox-actions">
+              <button class="ghost-button" id="copyInboxBtn" type="button">Copy</button>
+              <button class="ghost-button" id="refreshInboxInlineBtn" type="button">Refresh</button>
+            </div>
           </div>
           <div class="inbox-list" id="inboxList"></div>
           <p class="provider-note">
