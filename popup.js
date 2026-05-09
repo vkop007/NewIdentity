@@ -448,6 +448,10 @@ const FIRST_NAMES = {
 };
 
 const LAST_NAMES = ['Patel', 'Sharma', 'Khan', 'Smith', 'Johnson', 'Williams', 'Brown', 'Miller', 'Wilson', 'Davis'];
+const JOB_TITLES = ['Product Analyst', 'Operations Manager', 'Software Tester', 'Marketing Coordinator', 'Data Specialist', 'Support Lead'];
+const COMPANY_NAMES = ['Northstar Labs', 'Brightline Studio', 'Riverstone Trading', 'Evergreen Systems', 'Summit Works', 'Bluefield Group'];
+const ADDRESS2_PREFIXES = ['Apt', 'Suite', 'Unit', 'Flat', 'Floor'];
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 let state = {
   settings: { ...DEFAULT_SETTINGS },
@@ -558,15 +562,31 @@ function activateTab(tab) {
 async function generateIdentity(showStatus) {
   const country = COUNTRIES[state.settings.country] || COUNTRIES.US;
   const style = state.settings.nameStyle;
-  const firstName = style === 'any'
-    ? pick([...FIRST_NAMES.female, ...FIRST_NAMES.male])
-    : pick(FIRST_NAMES[style]);
+  const resolvedStyle = style === 'any' ? pick(['female', 'male']) : style;
+  const firstName = pick(FIRST_NAMES[resolvedStyle] || [...FIRST_NAMES.female, ...FIRST_NAMES.male]);
+  const middleName = createMiddleName(resolvedStyle, firstName);
   const lastName = pick(LAST_NAMES);
   const fullName = `${firstName} ${lastName}`;
   const city = pick(country.cities);
   const stateName = pick(country.states);
   const address1 = `${rand(18, 998)} ${pick(country.streets)}`;
+  const phone = country.phone();
+  const postalCode = country.postal();
   const accountPassword = createAccountPassword();
+  const identityProfile = createIdentityProfile({
+    firstName,
+    middleName,
+    lastName,
+    fullName,
+    gender: resolvedStyle === 'female' ? 'Female' : 'Male',
+    phone,
+    address1,
+    city,
+    state: stateName,
+    postalCode,
+    country: country.label,
+    countryCode: state.settings.country,
+  });
 
   if (showStatus) setStatus('Creating a real temporary inbox...', '');
 
@@ -582,18 +602,21 @@ async function generateIdentity(showStatus) {
 
   state.identity = {
     firstName,
+    middleName,
     lastName,
     fullName,
+    fullNameWithMiddle: `${firstName} ${middleName} ${lastName}`,
     email: mailbox.address,
     password: accountPassword,
     confirmPassword: accountPassword,
-    phone: country.phone(),
+    phone,
     address1,
     city,
     state: stateName,
-    postalCode: country.postal(),
+    postalCode,
     country: country.label,
     countryCode: state.settings.country,
+    ...identityProfile,
     mailbox,
     createdAt: new Date().toISOString(),
   };
@@ -933,14 +956,20 @@ async function copyFullIdentity() {
   if (!state.identity) return;
   const text = [
     state.identity.fullName,
+    state.identity.fullNameWithMiddle ? `Full name with middle: ${state.identity.fullNameWithMiddle}` : '',
+    state.identity.username ? `Username: ${state.identity.username}` : '',
     state.identity.email,
     `Password: ${state.identity.password}`,
     `Confirm password: ${state.identity.confirmPassword}`,
     state.identity.phone,
     state.identity.address1,
+    state.identity.address2,
     `${state.identity.city}, ${state.identity.state} ${state.identity.postalCode}`,
     state.identity.country,
-  ].join('\n');
+    state.identity.dateOfBirth ? `Date of birth: ${state.identity.dateOfBirth}` : '',
+    state.identity.company ? `Company: ${state.identity.company}` : '',
+    state.identity.jobTitle ? `Job title: ${state.identity.jobTitle}` : '',
+  ].filter(Boolean).join('\n');
   await copyText(text, 'Full identity copied.');
 }
 
@@ -960,13 +989,19 @@ async function fillCurrentPage() {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab?.id) throw new Error('No active tab found.');
 
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: fillFormFields,
-      args: [state.identity],
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ['content-autofill.js'],
     });
 
-    setStatus(result > 0 ? `Filled ${result} field${result === 1 ? '' : 's'} on this page.` : 'No matching fields found.', result > 0 ? 'success' : 'error');
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: identity => window.__newIdentityFillFields?.(identity, { force: true }) || 0,
+      args: [state.identity],
+    });
+    const filled = results.reduce((total, item) => total + Number(item.result || 0), 0);
+
+    setStatus(filled > 0 ? `Filled ${filled} field${filled === 1 ? '' : 's'} on this page.` : 'No matching fields found.', filled > 0 ? 'success' : 'error');
   } catch (error) {
     setStatus(error instanceof Error ? error.message : 'Unable to fill this page.', 'error');
   }
@@ -1154,61 +1189,6 @@ async function catchmailRequest(path) {
   return data || {};
 }
 
-function fillFormFields(identity) {
-  const mappings = [
-    ['firstName', ['first name', 'firstname', 'given name', 'fname']],
-    ['lastName', ['last name', 'lastname', 'surname', 'lname', 'family name']],
-    ['fullName', ['full name', 'name', 'your name']],
-    ['email', ['email', 'e-mail']],
-    ['confirmPassword', ['confirm password', 'password confirmation', 'confirm-password', 'confirmpassword', 'repeat password', 'retype password', 'verify password']],
-    ['password', ['password', 'passcode', 'new password']],
-    ['phone', ['phone', 'mobile', 'tel']],
-    ['address1', ['address', 'street', 'address line 1']],
-    ['city', ['city', 'town']],
-    ['state', ['state', 'province', 'region']],
-    ['postalCode', ['zip', 'postal', 'postcode', 'pin code', 'pincode']],
-    ['country', ['country']],
-  ];
-
-  const fields = Array.from(document.querySelectorAll('input, textarea, select'));
-  let filled = 0;
-
-  for (const field of fields) {
-    const descriptor = [
-      field.name,
-      field.id,
-      field.type,
-      field.getAttribute('aria-label'),
-      field.getAttribute('placeholder'),
-      field.labels ? Array.from(field.labels).map(label => label.textContent).join(' ') : '',
-    ].filter(Boolean).join(' ').toLowerCase();
-
-    const match = mappings.find(([, aliases]) => aliases.some(alias => descriptor.includes(alias)));
-    if (!match) continue;
-
-    const [key] = match;
-    const value = identity[key];
-    if (!value) continue;
-
-    if (field.tagName === 'SELECT') {
-      const option = Array.from(field.options).find(item => {
-        const optionText = item.textContent || '';
-        return optionText.toLowerCase().includes(String(value).toLowerCase()) || item.value.toLowerCase() === String(value).toLowerCase();
-      });
-      if (!option) continue;
-      field.value = option.value;
-    } else {
-      field.value = value;
-    }
-
-    field.dispatchEvent(new Event('input', { bubbles: true }));
-    field.dispatchEvent(new Event('change', { bubbles: true }));
-    filled += 1;
-  }
-
-  return filled;
-}
-
 async function clearHistory() {
   state.history = [];
   await chrome.storage.local.set({ [STORAGE_KEYS.history]: [] });
@@ -1226,6 +1206,95 @@ function setStatus(message, type = '') {
 function buildMailboxLocalPart(firstName, lastName, attempt) {
   const seed = `${slug(firstName)}.${slug(lastName)}.${Date.now().toString(36)}${rand(100, 999)}${attempt || ''}`;
   return seed.replace(/^\.+|\.+$/g, '').slice(0, 54) || `user.${Date.now().toString(36)}`;
+}
+
+function createIdentityProfile(identity) {
+  const birth = identity.dateOfBirth ? parseBirthDate(identity.dateOfBirth) : createBirthDate();
+  const gender = identity.gender || inferGender(identity.firstName);
+  const prefix = gender === 'Female' ? 'Ms.' : 'Mr.';
+  const middleName = identity.middleName || createMiddleName(gender.toLowerCase(), identity.firstName);
+  const address2 = identity.address2 || `${pick(ADDRESS2_PREFIXES)} ${rand(2, 998)}`;
+  const company = identity.company || pick(COMPANY_NAMES);
+  const jobTitle = identity.jobTitle || pick(JOB_TITLES);
+  const username = identity.username || createUsername(identity.firstName, identity.lastName);
+  const countryCode = identity.countryCode || '';
+
+  return {
+    middleName,
+    fullNameWithMiddle: `${identity.firstName} ${middleName} ${identity.lastName}`,
+    prefix,
+    title: prefix,
+    gender,
+    genderShort: gender === 'Female' ? 'F' : 'M',
+    username,
+    phoneNational: createNationalPhone(identity.phone),
+    address2,
+    addressBlock: [identity.address1, address2, `${identity.city}, ${identity.state} ${identity.postalCode}`, identity.country].filter(Boolean).join('\n'),
+    dateOfBirth: birth.dateOfBirth,
+    birthDay: birth.day,
+    birthDayPadded: String(birth.day).padStart(2, '0'),
+    birthMonth: birth.month,
+    birthMonthPadded: String(birth.month).padStart(2, '0'),
+    birthMonthName: MONTH_NAMES[birth.month - 1],
+    birthYear: birth.year,
+    age: birth.age,
+    company,
+    organization: company,
+    jobTitle,
+    occupation: jobTitle,
+    website: `https://${slug(company)}-${countryCode.toLowerCase() || 'global'}.example`,
+  };
+}
+
+function createMiddleName(style, firstName) {
+  const names = FIRST_NAMES[style] || [...FIRST_NAMES.female, ...FIRST_NAMES.male];
+  const availableNames = names.filter(name => name !== firstName);
+  return pick(availableNames.length ? availableNames : names);
+}
+
+function createUsername(firstName, lastName) {
+  return `${slug(firstName)}.${slug(lastName)}${rand(10, 999)}`;
+}
+
+function createNationalPhone(phone) {
+  return String(phone || '').replace(/^\+\d+\s*/, '').trim();
+}
+
+function createBirthDate() {
+  const today = new Date();
+  const age = rand(21, 58);
+  const year = today.getFullYear() - age;
+  const month = rand(1, 12);
+  const day = rand(1, 28);
+  return {
+    age,
+    year,
+    month,
+    day,
+    dateOfBirth: `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`,
+  };
+}
+
+function parseBirthDate(value) {
+  const [yearValue, monthValue, dayValue] = String(value || '').split('-').map(Number);
+  if (!yearValue || !monthValue || !dayValue) return createBirthDate();
+
+  const today = new Date();
+  const birthdayThisYear = new Date(today.getFullYear(), monthValue - 1, dayValue);
+  const age = today.getFullYear() - yearValue - (birthdayThisYear > today ? 1 : 0);
+  return {
+    age,
+    year: yearValue,
+    month: monthValue,
+    day: dayValue,
+    dateOfBirth: `${yearValue}-${String(monthValue).padStart(2, '0')}-${String(dayValue).padStart(2, '0')}`,
+  };
+}
+
+function inferGender(firstName) {
+  if (FIRST_NAMES.female.includes(firstName)) return 'Female';
+  if (FIRST_NAMES.male.includes(firstName)) return 'Male';
+  return pick(['Female', 'Male']);
 }
 
 function createPassword() {
@@ -1274,16 +1343,28 @@ function ensurePasswordFields() {
 
 function ensureIdentityPasswordFields(identity) {
   if (!identity) return identity;
+  let updatedIdentity = identity;
 
-  if (identity.password && identity.confirmPassword === identity.password) {
-    return identity;
+  if (!identity.password || identity.confirmPassword !== identity.password) {
+    const password = identity.password || createAccountPassword();
+    updatedIdentity = {
+      ...updatedIdentity,
+      password,
+      confirmPassword: password,
+      __passwordFieldsAdded: true,
+    };
   }
 
-  const password = identity.password || createAccountPassword();
+  const profile = createIdentityProfile(updatedIdentity);
+  const missingProfile = Object.fromEntries(
+    Object.entries(profile).filter(([key]) => !updatedIdentity[key])
+  );
+
+  if (!Object.keys(missingProfile).length) return updatedIdentity;
+
   return {
-    ...identity,
-    password,
-    confirmPassword: password,
+    ...updatedIdentity,
+    ...missingProfile,
     __passwordFieldsAdded: true,
   };
 }

@@ -17,6 +17,7 @@ A zero-dependency Chrome extension for generating test identities with a working
 - Detect common verification codes inside incoming emails.
 - Copy individual fields or the full identity.
 - Fill matching inputs on the active page.
+- Use autocomplete attributes, labels, placeholders, and select options to fill richer profile fields like middle name, address line 2, date of birth, company, job title, username, and gender.
 - Save recent identities locally in Chrome storage.
 - Create quick message templates from the current identity.
 
