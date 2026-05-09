@@ -11,7 +11,7 @@ A zero-dependency Chrome extension for generating test identities with a working
 
 ## Features
 
-- Generate names, phone, address, city, postal code, and state by country.
+- Generate names, phone, address, city, postal code, and state across 250 embedded countries and territories.
 - Create a real temporary Catchmail inbox for each new identity.
 - Refresh the inbox and open incoming messages from the popup.
 - Detect common verification codes inside incoming emails.

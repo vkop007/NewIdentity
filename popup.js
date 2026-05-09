@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS = {
   autoFill: false,
 };
 
-const COUNTRIES = {
+const COUNTRY_OVERRIDES = {
   US: {
     label: 'United States',
     states: ['California', 'New York', 'Texas', 'Florida', 'Washington', 'Illinois'],
@@ -61,6 +61,386 @@ const COUNTRIES = {
     phone: () => `+61 4${rand(10, 99)} ${rand(100, 999)} ${rand(100, 999)}`,
   },
 };
+
+const REGION_TEMPLATES = {
+  Africa: {
+    states: ['Central Region', 'Northern Province', 'Eastern Province', 'Western District', 'Capital District', 'Coastal Region'],
+    cities: ['Central City', 'Riverbend', 'Harbor Point', 'Lakeview', 'Hillcrest'],
+    streets: ['Independence Avenue', 'Market Road', 'Station Road', 'Unity Street', 'Garden Road'],
+  },
+  Americas: {
+    states: ['North District', 'South District', 'Central Province', 'Coastal County', 'River County', 'Capital Region'],
+    cities: ['Springfield', 'Riverside', 'Fairview', 'Georgetown', 'Kingston'],
+    streets: ['Main Street', 'Oak Avenue', 'Cedar Road', 'Liberty Street', 'Park Lane'],
+  },
+  Asia: {
+    states: ['Central Province', 'Northern Region', 'Southern District', 'Eastern Province', 'Capital Territory', 'Western District'],
+    cities: ['Metro City', 'Green Park', 'New Town', 'Garden City', 'Riverside'],
+    streets: ['Main Road', 'Station Road', 'Park Street', 'Market Street', 'Temple Road'],
+  },
+  Europe: {
+    states: ['Central Region', 'Northern County', 'Southern County', 'Eastern District', 'Western District', 'Capital District'],
+    cities: ['Old Town', 'Riverside', 'Newport', 'Lakeside', 'Kingsbridge'],
+    streets: ['High Street', 'Church Road', 'Station Street', 'Market Square', 'King Street'],
+  },
+  Oceania: {
+    states: ['North Island Region', 'South Coast Region', 'Central District', 'Capital Territory', 'Harbor District', 'West Coast'],
+    cities: ['Harbor City', 'Palm Bay', 'Coral Town', 'Green Island', 'Riverside'],
+    streets: ['Ocean Road', 'Queen Street', 'Harbor Drive', 'Palm Avenue', 'Market Road'],
+  },
+  Antarctic: {
+    states: ['Research Sector', 'Icefield District', 'Base Territory', 'Coastal Sector'],
+    cities: ['Research Base', 'South Station', 'Ice Harbor', 'Polar Camp'],
+    streets: ['Station Road', 'Base Camp Lane', 'Research Drive', 'Harbor Track'],
+  },
+  World: {
+    states: ['Central Region', 'Capital District', 'Northern District', 'Southern District', 'Eastern District', 'Western District'],
+    cities: ['Central City', 'Riverside', 'Harbor Town', 'Fairview', 'New Town'],
+    streets: ['Main Street', 'Market Road', 'Station Road', 'Park Avenue', 'High Street'],
+  },
+};
+
+// Country labels, capitals, regions, and phone prefixes are generated from the public mledoze/countries dataset.
+const COUNTRY_DEFINITIONS = [
+  ["AF","Afghanistan","+93","Asia","Southern Asia","Kabul"],
+  ["AX","Aland Islands","+35818","Europe","Northern Europe","Mariehamn"],
+  ["AL","Albania","+355","Europe","Southeast Europe","Tirana"],
+  ["DZ","Algeria","+213","Africa","Northern Africa","Algiers"],
+  ["AS","American Samoa","+1684","Oceania","Polynesia","Pago Pago"],
+  ["AD","Andorra","+376","Europe","Southern Europe","Andorra la Vella"],
+  ["AO","Angola","+244","Africa","Middle Africa","Luanda"],
+  ["AI","Anguilla","+1264","Americas","Caribbean","The Valley"],
+  ["AQ","Antarctica","","Antarctic","",""],
+  ["AG","Antigua and Barbuda","+1268","Americas","Caribbean","Saint John's"],
+  ["AR","Argentina","+54","Americas","South America","Buenos Aires"],
+  ["AM","Armenia","+374","Asia","Western Asia","Yerevan"],
+  ["AW","Aruba","+297","Americas","Caribbean","Oranjestad"],
+  ["AU","Australia","+61","Oceania","Australia and New Zealand","Canberra"],
+  ["AT","Austria","+43","Europe","Central Europe","Vienna"],
+  ["AZ","Azerbaijan","+994","Asia","Western Asia","Baku"],
+  ["BS","Bahamas","+1242","Americas","Caribbean","Nassau"],
+  ["BH","Bahrain","+973","Asia","Western Asia","Manama"],
+  ["BD","Bangladesh","+880","Asia","Southern Asia","Dhaka"],
+  ["BB","Barbados","+1246","Americas","Caribbean","Bridgetown"],
+  ["BY","Belarus","+375","Europe","Eastern Europe","Minsk"],
+  ["BE","Belgium","+32","Europe","Western Europe","Brussels"],
+  ["BZ","Belize","+501","Americas","Central America","Belmopan"],
+  ["BJ","Benin","+229","Africa","Western Africa","Porto-Novo"],
+  ["BM","Bermuda","+1441","Americas","North America","Hamilton"],
+  ["BT","Bhutan","+975","Asia","Southern Asia","Thimphu"],
+  ["BO","Bolivia","+591","Americas","South America","Sucre"],
+  ["BA","Bosnia and Herzegovina","+387","Europe","Southeast Europe","Sarajevo"],
+  ["BW","Botswana","+267","Africa","Southern Africa","Gaborone"],
+  ["BV","Bouvet Island","+47","Antarctic","",""],
+  ["BR","Brazil","+55","Americas","South America","Brasilia"],
+  ["IO","British Indian Ocean Territory","+246","Africa","Eastern Africa","Diego Garcia"],
+  ["VG","British Virgin Islands","+1284","Americas","Caribbean","Road Town"],
+  ["BN","Brunei","+673","Asia","South-Eastern Asia","Bandar Seri Begawan"],
+  ["BG","Bulgaria","+359","Europe","Southeast Europe","Sofia"],
+  ["BF","Burkina Faso","+226","Africa","Western Africa","Ouagadougou"],
+  ["BI","Burundi","+257","Africa","Eastern Africa","Gitega"],
+  ["KH","Cambodia","+855","Asia","South-Eastern Asia","Phnom Penh"],
+  ["CM","Cameroon","+237","Africa","Middle Africa","Yaounde"],
+  ["CA","Canada","+1","Americas","North America","Ottawa"],
+  ["CV","Cape Verde","+238","Africa","Western Africa","Praia"],
+  ["BQ","Caribbean Netherlands","+599","Americas","Caribbean","Kralendijk"],
+  ["KY","Cayman Islands","+1345","Americas","Caribbean","George Town"],
+  ["CF","Central African Republic","+236","Africa","Middle Africa","Bangui"],
+  ["TD","Chad","+235","Africa","Middle Africa","N'Djamena"],
+  ["CL","Chile","+56","Americas","South America","Santiago"],
+  ["CN","China","+86","Asia","Eastern Asia","Beijing"],
+  ["CX","Christmas Island","+61","Oceania","Australia and New Zealand","Flying Fish Cove"],
+  ["CC","Cocos (Keeling) Islands","+61","Oceania","Australia and New Zealand","West Island"],
+  ["CO","Colombia","+57","Americas","South America","Bogota"],
+  ["KM","Comoros","+269","Africa","Eastern Africa","Moroni"],
+  ["CG","Congo","+242","Africa","Middle Africa","Brazzaville"],
+  ["CK","Cook Islands","+682","Oceania","Polynesia","Avarua"],
+  ["CR","Costa Rica","+506","Americas","Central America","San Jose"],
+  ["HR","Croatia","+385","Europe","Southeast Europe","Zagreb"],
+  ["CU","Cuba","+53","Americas","Caribbean","Havana"],
+  ["CW","Curacao","+599","Americas","Caribbean","Willemstad"],
+  ["CY","Cyprus","+357","Europe","Southern Europe","Nicosia"],
+  ["CZ","Czechia","+420","Europe","Central Europe","Prague"],
+  ["DK","Denmark","+45","Europe","Northern Europe","Copenhagen"],
+  ["DJ","Djibouti","+253","Africa","Eastern Africa","Djibouti"],
+  ["DM","Dominica","+1767","Americas","Caribbean","Roseau"],
+  ["DO","Dominican Republic","+1","Americas","Caribbean","Santo Domingo"],
+  ["CD","DR Congo","+243","Africa","Middle Africa","Kinshasa"],
+  ["EC","Ecuador","+593","Americas","South America","Quito"],
+  ["EG","Egypt","+20","Africa","Northern Africa","Cairo"],
+  ["SV","El Salvador","+503","Americas","Central America","San Salvador"],
+  ["GQ","Equatorial Guinea","+240","Africa","Middle Africa","Malabo"],
+  ["ER","Eritrea","+291","Africa","Eastern Africa","Asmara"],
+  ["EE","Estonia","+372","Europe","Northern Europe","Tallinn"],
+  ["SZ","Eswatini","+268","Africa","Southern Africa","Lobamba"],
+  ["ET","Ethiopia","+251","Africa","Eastern Africa","Addis Ababa"],
+  ["FK","Falkland Islands","+500","Americas","South America","Stanley"],
+  ["FO","Faroe Islands","+298","Europe","Northern Europe","Torshavn"],
+  ["FJ","Fiji","+679","Oceania","Melanesia","Suva"],
+  ["FI","Finland","+358","Europe","Northern Europe","Helsinki"],
+  ["FR","France","+33","Europe","Western Europe","Paris"],
+  ["GF","French Guiana","+594","Americas","South America","Cayenne"],
+  ["PF","French Polynesia","+689","Oceania","Polynesia","Papeete"],
+  ["TF","French Southern and Antarctic Lands","+262","Antarctic","","Port-aux-Francais"],
+  ["GA","Gabon","+241","Africa","Middle Africa","Libreville"],
+  ["GM","Gambia","+220","Africa","Western Africa","Banjul"],
+  ["GE","Georgia","+995","Asia","Western Asia","Tbilisi"],
+  ["DE","Germany","+49","Europe","Western Europe","Berlin"],
+  ["GH","Ghana","+233","Africa","Western Africa","Accra"],
+  ["GI","Gibraltar","+350","Europe","Southern Europe","Gibraltar"],
+  ["GR","Greece","+30","Europe","Southern Europe","Athens"],
+  ["GL","Greenland","+299","Americas","North America","Nuuk"],
+  ["GD","Grenada","+1473","Americas","Caribbean","St. George's"],
+  ["GP","Guadeloupe","+590","Americas","Caribbean","Basse-Terre"],
+  ["GU","Guam","+1671","Oceania","Micronesia","Hagatna"],
+  ["GT","Guatemala","+502","Americas","Central America","Guatemala City"],
+  ["GG","Guernsey","+44","Europe","Northern Europe","St. Peter Port"],
+  ["GN","Guinea","+224","Africa","Western Africa","Conakry"],
+  ["GW","Guinea-Bissau","+245","Africa","Western Africa","Bissau"],
+  ["GY","Guyana","+592","Americas","South America","Georgetown"],
+  ["HT","Haiti","+509","Americas","Caribbean","Port-au-Prince"],
+  ["HM","Heard Island and McDonald Islands","","Antarctic","",""],
+  ["HN","Honduras","+504","Americas","Central America","Tegucigalpa"],
+  ["HK","Hong Kong","+852","Asia","Eastern Asia","City of Victoria"],
+  ["HU","Hungary","+36","Europe","Central Europe","Budapest"],
+  ["IS","Iceland","+354","Europe","Northern Europe","Reykjavik"],
+  ["IN","India","+91","Asia","Southern Asia","New Delhi"],
+  ["ID","Indonesia","+62","Asia","South-Eastern Asia","Jakarta"],
+  ["IR","Iran","+98","Asia","Southern Asia","Tehran"],
+  ["IQ","Iraq","+964","Asia","Western Asia","Baghdad"],
+  ["IE","Ireland","+353","Europe","Northern Europe","Dublin"],
+  ["IM","Isle of Man","+44","Europe","Northern Europe","Douglas"],
+  ["IL","Israel","+972","Asia","Western Asia","Jerusalem"],
+  ["IT","Italy","+39","Europe","Southern Europe","Rome"],
+  ["CI","Ivory Coast","+225","Africa","Western Africa","Yamoussoukro"],
+  ["JM","Jamaica","+1876","Americas","Caribbean","Kingston"],
+  ["JP","Japan","+81","Asia","Eastern Asia","Tokyo"],
+  ["JE","Jersey","+44","Europe","Northern Europe","Saint Helier"],
+  ["JO","Jordan","+962","Asia","Western Asia","Amman"],
+  ["KZ","Kazakhstan","+7","Asia","Central Asia","Astana"],
+  ["KE","Kenya","+254","Africa","Eastern Africa","Nairobi"],
+  ["KI","Kiribati","+686","Oceania","Micronesia","South Tarawa"],
+  ["XK","Kosovo","+383","Europe","Southeast Europe","Pristina"],
+  ["KW","Kuwait","+965","Asia","Western Asia","Kuwait City"],
+  ["KG","Kyrgyzstan","+996","Asia","Central Asia","Bishkek"],
+  ["LA","Laos","+856","Asia","South-Eastern Asia","Vientiane"],
+  ["LV","Latvia","+371","Europe","Northern Europe","Riga"],
+  ["LB","Lebanon","+961","Asia","Western Asia","Beirut"],
+  ["LS","Lesotho","+266","Africa","Southern Africa","Maseru"],
+  ["LR","Liberia","+231","Africa","Western Africa","Monrovia"],
+  ["LY","Libya","+218","Africa","Northern Africa","Tripoli"],
+  ["LI","Liechtenstein","+423","Europe","Western Europe","Vaduz"],
+  ["LT","Lithuania","+370","Europe","Northern Europe","Vilnius"],
+  ["LU","Luxembourg","+352","Europe","Western Europe","Luxembourg"],
+  ["MO","Macau","+853","Asia","Eastern Asia",""],
+  ["MG","Madagascar","+261","Africa","Eastern Africa","Antananarivo"],
+  ["MW","Malawi","+265","Africa","Eastern Africa","Lilongwe"],
+  ["MY","Malaysia","+60","Asia","South-Eastern Asia","Kuala Lumpur"],
+  ["MV","Maldives","+960","Asia","Southern Asia","Male"],
+  ["ML","Mali","+223","Africa","Western Africa","Bamako"],
+  ["MT","Malta","+356","Europe","Southern Europe","Valletta"],
+  ["MH","Marshall Islands","+692","Oceania","Micronesia","Majuro"],
+  ["MQ","Martinique","+596","Americas","Caribbean","Fort-de-France"],
+  ["MR","Mauritania","+222","Africa","Western Africa","Nouakchott"],
+  ["MU","Mauritius","+230","Africa","Eastern Africa","Port Louis"],
+  ["YT","Mayotte","+262","Africa","Eastern Africa","Mamoudzou"],
+  ["MX","Mexico","+52","Americas","North America","Mexico City"],
+  ["FM","Micronesia","+691","Oceania","Micronesia","Palikir"],
+  ["MD","Moldova","+373","Europe","Eastern Europe","Chisinau"],
+  ["MC","Monaco","+377","Europe","Western Europe","Monaco"],
+  ["MN","Mongolia","+976","Asia","Eastern Asia","Ulan Bator"],
+  ["ME","Montenegro","+382","Europe","Southeast Europe","Podgorica"],
+  ["MS","Montserrat","+1664","Americas","Caribbean","Plymouth"],
+  ["MA","Morocco","+212","Africa","Northern Africa","Rabat"],
+  ["MZ","Mozambique","+258","Africa","Eastern Africa","Maputo"],
+  ["MM","Myanmar","+95","Asia","South-Eastern Asia","Naypyidaw"],
+  ["NA","Namibia","+264","Africa","Southern Africa","Windhoek"],
+  ["NR","Nauru","+674","Oceania","Micronesia","Yaren"],
+  ["NP","Nepal","+977","Asia","Southern Asia","Kathmandu"],
+  ["NL","Netherlands","+31","Europe","Western Europe","Amsterdam"],
+  ["NC","New Caledonia","+687","Oceania","Melanesia","Noumea"],
+  ["NZ","New Zealand","+64","Oceania","Australia and New Zealand","Wellington"],
+  ["NI","Nicaragua","+505","Americas","Central America","Managua"],
+  ["NE","Niger","+227","Africa","Western Africa","Niamey"],
+  ["NG","Nigeria","+234","Africa","Western Africa","Abuja"],
+  ["NU","Niue","+683","Oceania","Polynesia","Alofi"],
+  ["NF","Norfolk Island","+672","Oceania","Australia and New Zealand","Kingston"],
+  ["KP","North Korea","+850","Asia","Eastern Asia","Pyongyang"],
+  ["MK","North Macedonia","+389","Europe","Southeast Europe","Skopje"],
+  ["MP","Northern Mariana Islands","+1670","Oceania","Micronesia","Saipan"],
+  ["NO","Norway","+47","Europe","Northern Europe","Oslo"],
+  ["OM","Oman","+968","Asia","Western Asia","Muscat"],
+  ["PK","Pakistan","+92","Asia","Southern Asia","Islamabad"],
+  ["PW","Palau","+680","Oceania","Micronesia","Ngerulmud"],
+  ["PS","Palestine","+970","Asia","Western Asia","Ramallah"],
+  ["PA","Panama","+507","Americas","Central America","Panama City"],
+  ["PG","Papua New Guinea","+675","Oceania","Melanesia","Port Moresby"],
+  ["PY","Paraguay","+595","Americas","South America","Asuncion"],
+  ["PE","Peru","+51","Americas","South America","Lima"],
+  ["PH","Philippines","+63","Asia","South-Eastern Asia","Manila"],
+  ["PN","Pitcairn Islands","+64","Oceania","Polynesia","Adamstown"],
+  ["PL","Poland","+48","Europe","Central Europe","Warsaw"],
+  ["PT","Portugal","+351","Europe","Southern Europe","Lisbon"],
+  ["PR","Puerto Rico","+1","Americas","Caribbean","San Juan"],
+  ["QA","Qatar","+974","Asia","Western Asia","Doha"],
+  ["RE","Reunion","+262","Africa","Eastern Africa","Saint-Denis"],
+  ["RO","Romania","+40","Europe","Southeast Europe","Bucharest"],
+  ["RU","Russia","+7","Europe","Eastern Europe","Moscow"],
+  ["RW","Rwanda","+250","Africa","Eastern Africa","Kigali"],
+  ["BL","Saint Barthelemy","+590","Americas","Caribbean","Gustavia"],
+  ["SH","Saint Helena, Ascension and Tristan da Cunha","+2","Africa","Western Africa","Jamestown"],
+  ["KN","Saint Kitts and Nevis","+1869","Americas","Caribbean","Basseterre"],
+  ["LC","Saint Lucia","+1758","Americas","Caribbean","Castries"],
+  ["MF","Saint Martin","+590","Americas","Caribbean","Marigot"],
+  ["PM","Saint Pierre and Miquelon","+508","Americas","North America","Saint-Pierre"],
+  ["VC","Saint Vincent and the Grenadines","+1784","Americas","Caribbean","Kingstown"],
+  ["WS","Samoa","+685","Oceania","Polynesia","Apia"],
+  ["SM","San Marino","+378","Europe","Southern Europe","City of San Marino"],
+  ["ST","Sao Tome and Principe","+239","Africa","Middle Africa","Sao Tome"],
+  ["SA","Saudi Arabia","+966","Asia","Western Asia","Riyadh"],
+  ["SN","Senegal","+221","Africa","Western Africa","Dakar"],
+  ["RS","Serbia","+381","Europe","Southeast Europe","Belgrade"],
+  ["SC","Seychelles","+248","Africa","Eastern Africa","Victoria"],
+  ["SL","Sierra Leone","+232","Africa","Western Africa","Freetown"],
+  ["SG","Singapore","+65","Asia","South-Eastern Asia","Singapore"],
+  ["SX","Sint Maarten","+1721","Americas","Caribbean","Philipsburg"],
+  ["SK","Slovakia","+421","Europe","Central Europe","Bratislava"],
+  ["SI","Slovenia","+386","Europe","Central Europe","Ljubljana"],
+  ["SB","Solomon Islands","+677","Oceania","Melanesia","Honiara"],
+  ["SO","Somalia","+252","Africa","Eastern Africa","Mogadishu"],
+  ["ZA","South Africa","+27","Africa","Southern Africa","Pretoria"],
+  ["GS","South Georgia","+500","Antarctic","","King Edward Point"],
+  ["KR","South Korea","+82","Asia","Eastern Asia","Seoul"],
+  ["SS","South Sudan","+211","Africa","Middle Africa","Juba"],
+  ["ES","Spain","+34","Europe","Southern Europe","Madrid"],
+  ["LK","Sri Lanka","+94","Asia","Southern Asia","Colombo"],
+  ["SD","Sudan","+249","Africa","Northern Africa","Khartoum"],
+  ["SR","Suriname","+597","Americas","South America","Paramaribo"],
+  ["SJ","Svalbard and Jan Mayen","+47","Europe","Northern Europe","Longyearbyen"],
+  ["SE","Sweden","+46","Europe","Northern Europe","Stockholm"],
+  ["CH","Switzerland","+41","Europe","Western Europe","Bern"],
+  ["SY","Syria","+963","Asia","Western Asia","Damascus"],
+  ["TW","Taiwan","+886","Asia","Eastern Asia","Taipei"],
+  ["TJ","Tajikistan","+992","Asia","Central Asia","Dushanbe"],
+  ["TZ","Tanzania","+255","Africa","Eastern Africa","Dodoma"],
+  ["TH","Thailand","+66","Asia","South-Eastern Asia","Bangkok"],
+  ["TL","Timor-Leste","+670","Asia","South-Eastern Asia","Dili"],
+  ["TG","Togo","+228","Africa","Western Africa","Lome"],
+  ["TK","Tokelau","+690","Oceania","Polynesia","Fakaofo"],
+  ["TO","Tonga","+676","Oceania","Polynesia","Nuku'alofa"],
+  ["TT","Trinidad and Tobago","+1868","Americas","Caribbean","Port of Spain"],
+  ["TN","Tunisia","+216","Africa","Northern Africa","Tunis"],
+  ["TR","Turkiye","+90","Asia","Western Asia","Ankara"],
+  ["TM","Turkmenistan","+993","Asia","Central Asia","Ashgabat"],
+  ["TC","Turks and Caicos Islands","+1649","Americas","Caribbean","Cockburn Town"],
+  ["TV","Tuvalu","+688","Oceania","Polynesia","Funafuti"],
+  ["UG","Uganda","+256","Africa","Eastern Africa","Kampala"],
+  ["UA","Ukraine","+380","Europe","Eastern Europe","Kyiv"],
+  ["AE","United Arab Emirates","+971","Asia","Western Asia","Abu Dhabi"],
+  ["GB","United Kingdom","+44","Europe","Northern Europe","London"],
+  ["US","United States","+1","Americas","North America","Washington D.C."],
+  ["UM","United States Minor Outlying Islands","+268","Americas","North America",""],
+  ["VI","United States Virgin Islands","+1340","Americas","Caribbean","Charlotte Amalie"],
+  ["UY","Uruguay","+598","Americas","South America","Montevideo"],
+  ["UZ","Uzbekistan","+998","Asia","Central Asia","Tashkent"],
+  ["VU","Vanuatu","+678","Oceania","Melanesia","Port Vila"],
+  ["VA","Vatican City","+3","Europe","Southern Europe","Vatican City"],
+  ["VE","Venezuela","+58","Americas","South America","Caracas"],
+  ["VN","Vietnam","+84","Asia","South-Eastern Asia","Hanoi"],
+  ["WF","Wallis and Futuna","+681","Oceania","Polynesia","Mata-Utu"],
+  ["EH","Western Sahara","+212","Africa","Northern Africa","El Aaiun"],
+  ["YE","Yemen","+967","Asia","Western Asia","Sana'a"],
+  ["ZM","Zambia","+260","Africa","Eastern Africa","Lusaka"],
+  ["ZW","Zimbabwe","+263","Africa","Eastern Africa","Harare"],
+];
+
+const COUNTRIES = buildCountries();
+
+function buildCountries() {
+  const countries = Object.fromEntries(
+    COUNTRY_DEFINITIONS.map(definition => [definition[0], createCountryConfig(definition)])
+  );
+
+  for (const [code, override] of Object.entries(COUNTRY_OVERRIDES)) {
+    countries[code] = { ...countries[code], ...override };
+  }
+
+  return countries;
+}
+
+function createCountryConfig([code, label, phoneCode, region, subregion, capital]) {
+  const template = REGION_TEMPLATES[region] || REGION_TEMPLATES.World;
+  const cities = unique([capital, ...template.cities, `${label} City`]).slice(0, 6);
+  const states = unique([
+    capital ? `${capital} District` : '',
+    subregion || '',
+    `${label} Region`,
+    ...template.states,
+  ]).slice(0, 8);
+
+  return {
+    label,
+    states,
+    cities,
+    streets: template.streets,
+    postal: () => createPostalCode(region, code),
+    phone: () => createPhoneNumber(phoneCode, region),
+  };
+}
+
+function createPostalCode(region, code) {
+  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ'.split('');
+
+  if (region === 'Europe') {
+    return `${rand(1000, 99999)}`;
+  }
+
+  if (region === 'Americas') {
+    return `${rand(10000, 99999)}${pick(['', '', `-${rand(1000, 9999)}`])}`;
+  }
+
+  if (region === 'Asia') {
+    return String(rand(100000, 999999));
+  }
+
+  if (region === 'Africa') {
+    return String(rand(1000, 99999)).padStart(5, '0');
+  }
+
+  if (region === 'Oceania') {
+    return String(rand(1000, 9999));
+  }
+
+  if (region === 'Antarctic') {
+    return `${code}-${rand(1000, 9999)}`;
+  }
+
+  return `${pick(letters)}${rand(1000, 9999)}`;
+}
+
+function createPhoneNumber(phoneCode, region) {
+  const code = phoneCode || '+999';
+  const pattern = region === 'Europe'
+    ? [3, 3, 3]
+    : region === 'Asia'
+      ? [3, 4, 3]
+      : region === 'Oceania'
+        ? [2, 3, 3]
+        : [3, 3, 4];
+
+  return [code, ...pattern.map(createNumberGroup)].join(' ');
+}
+
+function createNumberGroup(digits) {
+  const min = 10 ** (digits - 1);
+  const max = (10 ** digits) - 1;
+  return String(rand(min, max));
+}
+
+function unique(items) {
+  return [...new Set(items.filter(Boolean))];
+}
+
 
 const FIRST_NAMES = {
   female: ['Ava', 'Mia', 'Sophia', 'Olivia', 'Emma', 'Anaya', 'Priya', 'Isla', 'Grace', 'Zara'],
