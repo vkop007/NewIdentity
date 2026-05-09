@@ -1,10 +1,11 @@
 (() => {
-  if (window.__newIdentityAutofillLoaded && window.__newIdentityFillFields) return;
+  if (window.__newIdentityAutofillLoaded && window.__newIdentityFillFields && window.__newIdentityFillOtp) return;
   window.__newIdentityAutofillLoaded = true;
 
   const STORAGE_KEYS = {
     identity: 'newIdentity.current',
     settings: 'newIdentity.settings',
+    otp: 'newIdentity.latestOtp',
   };
   const FIELD_MARK = 'data-new-identity-autofilled';
   const SKIPPED_INPUT_TYPES = new Set([
@@ -81,9 +82,14 @@
 
   let cachedIdentity = null;
   let cachedSettings = null;
+  let cachedOtp = null;
   let pendingFill = 0;
 
   window.__newIdentityFillFields = (identity, options = {}) => fillFields(identity, {
+    fillOnlyEmpty: !options.force,
+    markFields: options.markFields !== false,
+  });
+  window.__newIdentityFillOtp = (code, options = {}) => fillOtpFields(code, {
     fillOnlyEmpty: !options.force,
     markFields: options.markFields !== false,
   });
@@ -95,6 +101,7 @@
       const stored = await chrome.storage.local.get(Object.values(STORAGE_KEYS));
       cachedIdentity = stored[STORAGE_KEYS.identity] || null;
       cachedSettings = stored[STORAGE_KEYS.settings] || null;
+      cachedOtp = stored[STORAGE_KEYS.otp] || null;
       scheduleFill();
       observePage();
       observeStorage();
@@ -116,6 +123,10 @@
       if (area !== 'local') return;
       if (changes[STORAGE_KEYS.identity]) cachedIdentity = changes[STORAGE_KEYS.identity].newValue || null;
       if (changes[STORAGE_KEYS.settings]) cachedSettings = changes[STORAGE_KEYS.settings].newValue || null;
+      if (changes[STORAGE_KEYS.otp]) {
+        cachedOtp = changes[STORAGE_KEYS.otp].newValue || null;
+        if (cachedSettings?.autoFill && cachedOtp?.code) fillOtpFields(cachedOtp.code, { fillOnlyEmpty: true, markFields: true });
+      }
       scheduleFill();
     });
   }
@@ -125,6 +136,7 @@
     pendingFill = window.setTimeout(() => {
       if (!cachedSettings?.autoFill || !cachedIdentity?.email) return;
       fillFields(cachedIdentity, { fillOnlyEmpty: true, markFields: true });
+      if (cachedOtp?.code) fillOtpFields(cachedOtp.code, { fillOnlyEmpty: true, markFields: true });
     }, 120);
   }
 
@@ -154,6 +166,114 @@
     }
 
     return filled;
+  }
+
+  function fillOtpFields(rawCode, options) {
+    const code = normalizeOtpCode(rawCode);
+    if (!code) return 0;
+
+    const fields = Array.from(document.querySelectorAll('input, textarea'))
+      .filter(field => canFillOtpField(field, options));
+    const describedFields = fields.map(field => ({ field, descriptor: buildDescriptor(field) }));
+    const explicitOtpFields = describedFields.filter(item => isOtpField(item.field, item.descriptor));
+    const splitFields = explicitOtpFields
+      .filter(item => isSingleOtpInput(item.field))
+      .map(item => item.field);
+
+    if (splitFields.length >= code.length) {
+      return fillSplitOtpFields(splitFields, code, options);
+    }
+
+    const singleField = explicitOtpFields
+      .map(item => item.field)
+      .find(field => !isSingleOtpInput(field) && canAcceptOtpLength(field, code));
+    if (singleField) {
+      return fillSingleOtpField(singleField, code, options);
+    }
+
+    const groupedSplitFields = findGroupedOtpDigitFields(fields, code.length);
+    if (groupedSplitFields.length >= code.length) {
+      return fillSplitOtpFields(groupedSplitFields, code, options);
+    }
+
+    return 0;
+  }
+
+  function canFillOtpField(field, options) {
+    if (!options.fillOnlyEmpty && field.hasAttribute(FIELD_MARK)) field.removeAttribute(FIELD_MARK);
+    if (options.fillOnlyEmpty && field.hasAttribute(FIELD_MARK)) return false;
+    if (field.disabled || field.readOnly) return false;
+    if (!isVisible(field)) return false;
+    if (field.tagName === 'INPUT' && SKIPPED_INPUT_TYPES.has((field.type || '').toLowerCase())) return false;
+    return !options.fillOnlyEmpty || isFieldEmpty(field);
+  }
+
+  function isOtpField(field, descriptor) {
+    if (descriptor.autocomplete.includes('one-time-code')) return true;
+    if (hasAnyPhrase(descriptor.text, ['otp', 'one time code', 'one-time-code', 'verification code', 'security code', 'auth code', 'login code', 'passcode', 'two factor', '2fa', 'mfa'])) return true;
+    if (!descriptor.text.includes('code')) return false;
+    if (hasAnyPhrase(descriptor.text, ['postal code', 'zip code', 'country code', 'area code', 'promo code', 'coupon code', 'referral code'])) return false;
+
+    const maxLength = getMaxLength(field);
+    return ['numeric', 'decimal', 'tel'].includes(descriptor.inputMode)
+      || descriptor.inputType === 'number'
+      || (maxLength >= 4 && maxLength <= 8);
+  }
+
+  function fillSingleOtpField(field, code, options) {
+    if (!applyValue(field, [code], 'otp')) return 0;
+    if (options.markFields) field.setAttribute(FIELD_MARK, 'true');
+    dispatchFieldEvents(field);
+    return 1;
+  }
+
+  function fillSplitOtpFields(fields, code, options) {
+    const usableFields = fields.slice(0, code.length);
+    usableFields.forEach((field, index) => {
+      applyValue(field, [code[index]], 'otp');
+      if (options.markFields) field.setAttribute(FIELD_MARK, 'true');
+      dispatchFieldEvents(field);
+    });
+    return usableFields.length;
+  }
+
+  function findGroupedOtpDigitFields(fields, codeLength) {
+    const groups = new Map();
+
+    for (const field of fields) {
+      if (!isSingleOtpInput(field)) continue;
+      const container = field.closest('form, fieldset, [role="group"], section, div') || document.body;
+      if (!groups.has(container)) groups.set(container, []);
+      groups.get(container).push(field);
+    }
+
+    for (const [container, groupFields] of groups) {
+      const containerText = normalizeText(container.textContent || '');
+      if (groupFields.length >= codeLength && hasAnyPhrase(containerText, ['otp', 'one time code', 'verification code', 'security code', 'login code', '2fa', 'mfa'])) {
+        return groupFields;
+      }
+    }
+
+    return [];
+  }
+
+  function isSingleOtpInput(field) {
+    return getMaxLength(field) === 1 || Number(field.size || 0) === 1;
+  }
+
+  function canAcceptOtpLength(field, code) {
+    const maxLength = getMaxLength(field);
+    return maxLength <= 0 || maxLength >= code.length;
+  }
+
+  function getMaxLength(field) {
+    const value = Number(field.maxLength || field.getAttribute('maxlength') || 0);
+    return value > 0 ? value : 0;
+  }
+
+  function normalizeOtpCode(value) {
+    const digits = String(value || '').replace(/\D/g, '');
+    return digits.length >= 4 && digits.length <= 8 ? digits : '';
   }
 
   function canFillField(field, options) {
@@ -199,6 +319,7 @@
       text: normalizeText(text),
       autocomplete: String(field.autocomplete || '').toLowerCase(),
       inputType: String(field.type || '').toLowerCase(),
+      inputMode: String(field.inputMode || field.getAttribute('inputmode') || '').toLowerCase(),
       tagName: field.tagName,
     };
   }

@@ -9,6 +9,7 @@ const STORAGE_KEYS = {
   identity: 'newIdentity.current',
   history: 'newIdentity.history',
   settings: 'newIdentity.settings',
+  otp: 'newIdentity.latestOtp',
 };
 
 const DEFAULT_SETTINGS = {
@@ -675,23 +676,45 @@ function renderInboxMessages() {
   els.inboxList.replaceChildren(...state.inboxMessages.map(message => {
     const detail = state.messageDetails[message.id];
     const from = normalizeSender(message.from);
-    const code = extractCode([message.subject, message.intro, getMessageBody(detail)].filter(Boolean).join(' '));
-    const body = detail ? getMessageBody(detail).slice(0, 900) : '';
-    const button = document.createElement('button');
-    button.className = 'message-card inbox-message';
-    button.type = 'button';
-    button.innerHTML = [
+    const body = detail ? getMessageBody(detail) : '';
+    const code = extractCode([message.subject, message.intro, body].filter(Boolean).join(' '));
+    const card = document.createElement('article');
+    card.className = 'message-card inbox-message';
+    card.innerHTML = [
       '<div class="message-topline">',
       `<span class="message-meta">${escapeHtml(from)}</span>`,
-      code ? `<span class="message-code">Code ${escapeHtml(code)}</span>` : '<span class="message-status">Open</span>',
+      code ? `<span class="message-code">Code ${escapeHtml(code)}</span>` : '',
       '</div>',
       `<strong>${escapeHtml(message.subject || 'No subject')}</strong>`,
-      `<small>${escapeHtml(message.intro || 'Open to read the full message and extract verification codes.')}</small>`,
-      body ? `<p class="message-body">${escapeHtml(body)}</p>` : '',
+      `<small>${escapeHtml(message.intro || 'No preview text available.')}</small>`,
+      body ? `<p class="message-body">${formatMessageBody(body, message)}</p>` : '',
     ].join('');
-    button.addEventListener('click', () => openInboxMessage(message.id));
-    return button;
+
+    const actions = document.createElement('div');
+    actions.className = 'message-actions';
+
+    if (code) {
+      actions.append(
+        createMessageAction('Copy OTP', () => copyOtpCode(code, message.id), 'primary'),
+        createMessageAction('Fill OTP', () => fillOtpFromInbox(code, message.id), 'primary')
+      );
+      card.append(actions);
+    }
+
+    return card;
   }));
+}
+
+function createMessageAction(label, onClick, tone = '') {
+  const button = document.createElement('button');
+  button.className = `message-action ${tone}`.trim();
+  button.type = 'button';
+  button.textContent = label;
+  button.addEventListener('click', async event => {
+    event.stopPropagation();
+    await onClick();
+  });
+  return button;
 }
 
 function emptyCard(title, body, tone = '') {
@@ -717,9 +740,16 @@ async function refreshInbox(showStatus) {
 
   try {
     state.inboxMessages = await listMailboxMessages(mailbox);
+    await hydrateRecentInboxDetails(mailbox);
     renderInboxMessages();
     if (showStatus) {
       const count = state.inboxMessages.length;
+      const latestOtp = findLatestInboxOtp();
+      if (latestOtp) {
+        const filled = await fillOtpFromInbox(latestOtp.code, latestOtp.messageId, false);
+        setStatus(filled > 0 ? `Inbox refreshed. OTP ${latestOtp.code} filled on the page.` : `Inbox refreshed. OTP ${latestOtp.code} found and ready to copy.`, 'success');
+        return;
+      }
       setStatus(`Inbox refreshed. ${count} message${count === 1 ? '' : 's'} found.`, 'success');
     }
   } catch (error) {
@@ -727,24 +757,48 @@ async function refreshInbox(showStatus) {
   }
 }
 
-async function openInboxMessage(messageId) {
-  const mailbox = state.identity?.mailbox;
-  if (!mailbox?.address || !messageId) return;
+async function hydrateRecentInboxDetails(mailbox) {
+  const messagesToHydrate = state.inboxMessages
+    .filter(message => !state.messageDetails[message.id])
+    .slice(0, 6);
 
-  if (state.messageDetails[messageId]) {
-    renderInboxMessages();
-    return;
-  }
+  await Promise.all(messagesToHydrate.map(async message => {
+    try {
+      state.messageDetails[message.id] = await readMailboxMessage(mailbox, message.id);
+    } catch {
+      // Some inbox providers may reject individual reads. Keep the inbox usable.
+    }
+  }));
+}
 
-  try {
-    state.messageDetails[messageId] = await readMailboxMessage(mailbox, messageId);
-    renderInboxMessages();
-    const body = getMessageBody(state.messageDetails[messageId]);
-    const code = extractCode(body);
-    setStatus(code ? `Message opened. Verification code: ${code}` : 'Message opened.', 'success');
-  } catch (error) {
-    setStatus(error instanceof Error ? error.message : 'Unable to open message.', 'error');
+function findLatestInboxOtp() {
+  for (const message of state.inboxMessages) {
+    const detail = state.messageDetails[message.id];
+    const code = extractCode([message.subject, message.intro, getMessageBody(detail)].filter(Boolean).join(' '));
+    if (code) return { code, messageId: message.id };
   }
+  return null;
+}
+
+async function copyOtpCode(code, messageId) {
+  await rememberOtp(code, messageId);
+  await copyText(code, `OTP ${code} copied.`);
+}
+
+async function fillOtpFromInbox(code, messageId, showStatus = true) {
+  await rememberOtp(code, messageId);
+  return fillOtpOnActiveTab(code, showStatus);
+}
+
+async function rememberOtp(code, messageId) {
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.otp]: {
+      code,
+      messageId,
+      address: state.identity?.mailbox?.address || '',
+      createdAt: new Date().toISOString(),
+    },
+  });
 }
 
 function renderMessages() {
@@ -1004,6 +1058,42 @@ async function fillCurrentPage() {
     setStatus(filled > 0 ? `Filled ${filled} field${filled === 1 ? '' : 's'} on this page.` : 'No matching fields found.', filled > 0 ? 'success' : 'error');
   } catch (error) {
     setStatus(error instanceof Error ? error.message : 'Unable to fill this page.', 'error');
+  }
+}
+
+async function fillOtpOnActiveTab(code, showStatus = true) {
+  if (!code) {
+    if (showStatus) setStatus('No OTP code found to fill.', 'error');
+    return 0;
+  }
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab?.id || !/^https?:\/\//.test(tab.url || '')) {
+      if (showStatus) setStatus('Open the verification page, then tap Fill OTP.', 'error');
+      return 0;
+    }
+
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      files: ['content-autofill.js'],
+    });
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: otp => window.__newIdentityFillOtp?.(otp, { force: true }) || 0,
+      args: [code],
+    });
+    const filled = results.reduce((total, item) => total + Number(item.result || 0), 0);
+
+    if (showStatus) {
+      setStatus(filled > 0 ? `OTP ${code} filled on the page.` : `No OTP field found. OTP ${code} is ready to copy.`, filled > 0 ? 'success' : 'error');
+    }
+
+    return filled;
+  } catch (error) {
+    if (showStatus) setStatus(error instanceof Error ? error.message : 'Unable to fill OTP on this page.', 'error');
+    return 0;
   }
 }
 
@@ -1373,7 +1463,82 @@ function getMessageBody(detail) {
   if (!detail) return '';
   const catchmailBody = detail.body?.text || detail.body?.html;
   const value = catchmailBody || detail.body_text || detail.text || (Array.isArray(detail.html) ? detail.html.join('\n') : detail.html) || detail.intro || '';
-  return stripHtml(value).replace(/\s+\n/g, '\n').trim();
+  return stripHtml(appendHtmlLinkTargets(value)).replace(/\s+\n/g, '\n').trim();
+}
+
+function appendHtmlLinkTargets(value) {
+  return String(value || '').replace(/<a\b[^>]*href=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (match, quote, href, label) => {
+    const cleanHref = href.replace(/&amp;/g, '&').trim();
+    const cleanLabel = stripHtml(label).trim();
+    return cleanLabel.includes(cleanHref) ? cleanLabel : `${cleanLabel} ${cleanHref}`;
+  });
+}
+
+function formatMessageBody(body, message) {
+  const preview = String(body || '').slice(0, 1400);
+  const urlPattern = /https?:\/\/[^\s<>"']+/g;
+  let cursor = 0;
+  let output = '';
+  let match;
+
+  while ((match = urlPattern.exec(preview)) !== null) {
+    const rawUrl = match[0];
+    const cleanUrl = rawUrl.replace(/[),.;:!?]+$/g, '');
+    const trailing = rawUrl.slice(cleanUrl.length);
+
+    output += escapeHtml(preview.slice(cursor, match.index));
+    output += createMessageLinkHtml(cleanUrl, message, body);
+    output += escapeHtml(trailing);
+    cursor = match.index + rawUrl.length;
+  }
+
+  output += escapeHtml(preview.slice(cursor));
+  return output;
+}
+
+function createMessageLinkHtml(url, message, body) {
+  const href = safeHttpUrl(url);
+  if (!href) return escapeHtml(url);
+
+  const label = buildMessageLinkLabel(href, message, body);
+  return `<a class="message-link" href="${escapeHtml(href)}" target="_blank" rel="noreferrer">${escapeHtml(label)}</a>`;
+}
+
+function safeHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch {
+    return '';
+  }
+}
+
+function buildMessageLinkLabel(url, message, body) {
+  const brand = inferMessageLinkBrand(url, message) || 'website';
+  const text = `${message?.subject || ''} ${message?.intro || ''} ${body || ''}`.toLowerCase();
+  const verb = /sign\s*up|signup|register|registration/.test(text)
+    ? 'Sign up'
+    : /verify|verification|confirm|activate/.test(text)
+      ? 'Verify'
+      : 'Open';
+
+  return `${verb} ${brand}`;
+}
+
+function inferMessageLinkBrand(url, message) {
+  const sender = normalizeSender(message?.from || '');
+  const senderName = sender.replace(/<[^>]+>/g, '').replace(/["']/g, '').trim();
+  if (senderName && !senderName.includes('@') && senderName.length <= 32) return senderName;
+
+  try {
+    const hostParts = new URL(url).hostname.split('.').filter(Boolean);
+    const ignoredParts = new Set(['www', 'app', 'api', 'auth', 'login', 'account', 'accounts', 'clerk', 'mail', 'email', 'verify']);
+    const meaningful = hostParts.filter(part => !ignoredParts.has(part));
+    const name = meaningful.length >= 2 ? meaningful[meaningful.length - 2] : meaningful[0] || hostParts[0];
+    return titleCaseSlug(name);
+  } catch {
+    return '';
+  }
 }
 
 function normalizeSender(sender) {
@@ -1391,8 +1556,12 @@ function stripHtml(value) {
 }
 
 function extractCode(value) {
-  const match = String(value || '').match(/\b\d{4,8}\b/);
-  return match?.[0] || '';
+  const text = stripHtml(value || '');
+  const preferred = text.match(/(?:code|otp|verification|verify|passcode|pin)[^\d]{0,24}(\d[\d\s-]{2,14}\d)/i)
+    || text.match(/(\d[\d\s-]{2,14}\d)[^\w]{0,24}(?:code|otp|verification|verify|passcode|pin)/i);
+  const fallback = preferred ? null : text.match(/\b(\d{6})\b/);
+  const digits = (preferred?.[1] || fallback?.[1] || '').replace(/\D/g, '');
+  return digits.length >= 4 && digits.length <= 8 ? digits : '';
 }
 
 function safeJson(text) {
@@ -1405,6 +1574,14 @@ function safeJson(text) {
 
 function labelForKey(key) {
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, char => char.toUpperCase());
+}
+
+function titleCaseSlug(value) {
+  return String(value || '')
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
 }
 
 function slug(value) {
