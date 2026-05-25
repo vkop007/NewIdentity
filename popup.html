@@ -103,9 +103,9 @@
         <div class="section-heading">
           <div>
             <span>Inbox</span>
-            <h2>Temporary mailbox</h2>
+            <h2>Mail center</h2>
           </div>
-          <button class="ghost-button" id="refreshInboxBtn" type="button">Refresh</button>
+          <button class="ghost-button action-pill" id="refreshInboxBtn" type="button">Check mail</button>
         </div>
 
         <section class="inbox-card">
@@ -114,14 +114,15 @@
               <span id="mailboxState">Live mailbox</span>
               <strong id="inboxAddress">-</strong>
             </div>
-            <div class="inbox-actions">
-              <button class="ghost-button" id="copyInboxBtn" type="button">Copy</button>
-              <button class="ghost-button" id="refreshInboxInlineBtn" type="button">Refresh</button>
-            </div>
+            <button class="copy-chip" id="copyInboxBtn" type="button" aria-label="Copy inbox address">Copy</button>
+          </div>
+          <div class="inbox-summary-row">
+            <span>Incoming mail</span>
+            <strong id="inboxCount">No messages</strong>
           </div>
           <div class="inbox-list" id="inboxList"></div>
           <p class="provider-note">
-            Inbox service by <a href="https://catchmail.io/" rel="noreferrer" target="_blank">Catchmail</a>.
+            Inbox by <a href="https://catchmail.io/" rel="noreferrer" target="_blank">Catchmail</a>, with Mail.tm fallback.
           </p>
         </section>
 
