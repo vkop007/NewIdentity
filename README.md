@@ -9,6 +9,15 @@ A zero-dependency Chrome extension for generating test identities with a working
 3. Click Load unpacked.
 4. Select this `NewIdentity` folder.
 
+## Package for release
+
+The extension is production-ready as a static MV3 package. Icons are stored in `icons/` and referenced by `manifest.json`.
+
+```sh
+mkdir -p dist
+zip -r dist/new-identity-1.0.0.zip manifest.json popup.html popup.css popup.js content-autofill.js icons
+```
+
 ## Features
 
 - Generate names, phone, address, city, postal code, and state across 250 embedded countries and territories.
