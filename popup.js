@@ -473,6 +473,7 @@ const els = {
   historyList: document.querySelector('#historyList'),
   inboxAddress: document.querySelector('#inboxAddress'),
   inboxList: document.querySelector('#inboxList'),
+  inboxCount: document.querySelector('#inboxCount'),
   mailboxState: document.querySelector('#mailboxState'),
 };
 
@@ -519,7 +520,6 @@ function bindEvents() {
   document.querySelector('#fillPageBtn').addEventListener('click', fillCurrentPage);
   document.querySelector('#saveSettingsBtn').addEventListener('click', saveSettingsFromControls);
   document.querySelector('#refreshInboxBtn').addEventListener('click', () => refreshInbox(true));
-  document.querySelector('#refreshInboxInlineBtn').addEventListener('click', () => refreshInbox(true));
   document.querySelector('#copyInboxBtn').addEventListener('click', copyInboxAddress);
   document.querySelector('#clearHistoryBtn').addEventListener('click', clearHistory);
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
@@ -665,30 +665,43 @@ function renderInbox() {
 
 function renderInboxMessages() {
   if (!state.identity?.mailbox?.address) {
+    els.inboxCount.textContent = 'Not ready';
     els.inboxList.replaceChildren(emptyCard('No mailbox yet', 'Generate an identity to create a working temporary email address.', 'mail'));
     return;
   }
 
   if (!state.inboxMessages.length) {
+    els.inboxCount.textContent = 'No messages';
     els.inboxList.replaceChildren(emptyCard('Inbox is empty', 'Send a verification email to this address, then tap Check mail.', 'empty'));
     return;
   }
+
+  els.inboxCount.textContent = `${state.inboxMessages.length} message${state.inboxMessages.length === 1 ? '' : 's'}`;
 
   els.inboxList.replaceChildren(...state.inboxMessages.map(message => {
     const detail = state.messageDetails[message.id];
     const from = normalizeSender(message.from);
     const body = detail ? getMessageBody(detail) : '';
     const code = extractCode([message.subject, message.intro, body].filter(Boolean).join(' '));
+    const dateLabel = formatMessageDate(message.date);
+    const preview = getMessagePreview(message, body);
+    const senderInitial = getSenderInitial(from);
     const card = document.createElement('article');
     card.className = 'message-card inbox-message';
     card.innerHTML = [
-      '<div class="message-topline">',
+      '<header class="message-card-header">',
+      '<div class="sender-cluster">',
+      `<span class="sender-dot" aria-hidden="true">${escapeHtml(senderInitial)}</span>`,
+      '<div>',
       `<span class="message-meta">${escapeHtml(from)}</span>`,
-      code ? `<span class="message-code">Code ${escapeHtml(code)}</span>` : '',
-      '</div>',
       `<strong>${escapeHtml(message.subject || 'No subject')}</strong>`,
-      `<small>${escapeHtml(message.intro || 'No preview text available.')}</small>`,
-      body ? `<p class="message-body">${formatMessageBody(body, message)}</p>` : '',
+      '</div>',
+      '</div>',
+      code ? `<span class="message-code">Code ${escapeHtml(code)}</span>` : '',
+      '</header>',
+      `<p class="message-preview">${escapeHtml(preview)}</p>`,
+      dateLabel ? `<span class="message-time">${escapeHtml(dateLabel)}</span>` : '',
+      body ? `<details class="message-details"><summary>Open message</summary><div class="message-body">${formatMessageBody(body, message)}</div></details>` : '',
     ].join('');
 
     const actions = document.createElement('div');
@@ -716,6 +729,30 @@ function createMessageAction(label, onClick, tone = '') {
     await onClick();
   });
   return button;
+}
+
+function getMessagePreview(message, body) {
+  const subject = String(message.subject || '').trim();
+  const intro = String(message.intro || '').trim();
+  const cleanBody = stripHtml(body).replace(/\s+/g, ' ').trim();
+  const preview = intro && intro !== subject ? intro : cleanBody;
+  return preview || 'No preview text available.';
+}
+
+function getSenderInitial(sender) {
+  return String(sender || '@').replace(/^[^a-z0-9]+/i, '').charAt(0).toUpperCase() || '@';
+}
+
+function formatMessageDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function emptyCard(title, body, tone = '') {
