@@ -5,6 +5,7 @@ const CATCHMAIL_DOMAIN = 'catchmail.io';
 const AUTOFILL_ORIGINS = ['http://*/*', 'https://*/*'];
 const AUTOFILL_SCRIPT_ID = 'new-identity-auto-fill';
 const DEFAULT_PROXY_COUNTRY = 'US';
+const PRIVATE_CARD_FILE = 'private-card.json';
 
 const STORAGE_KEYS = {
   identity: 'newIdentity.current',
@@ -462,6 +463,7 @@ let state = {
   history: [],
   inboxMessages: [],
   messageDetails: {},
+  privateCard: null,
   proxy: null,
   proxyAction: '',
 };
@@ -514,6 +516,7 @@ async function init() {
   }
   hydrateControls();
   await syncAutoFillPermissionState();
+  await loadPrivateCard();
   await loadProxyState(false);
 
   if (!state.identity?.mailbox?.address) {
@@ -580,6 +583,39 @@ async function loadState() {
   state.history = Array.isArray(stored[STORAGE_KEYS.history])
     ? stored[STORAGE_KEYS.history].filter(item => item?.mailbox?.address)
     : [];
+}
+
+async function loadPrivateCard() {
+  try {
+    const response = await fetch(chrome.runtime.getURL(PRIVATE_CARD_FILE), { cache: 'no-store' });
+    if (!response.ok) {
+      state.privateCard = null;
+      return;
+    }
+
+    const payload = await response.json();
+    state.privateCard = normalizePrivateCard(payload.paymentCard || payload.card || payload);
+  } catch {
+    state.privateCard = null;
+  }
+}
+
+function normalizePrivateCard(card = {}) {
+  const cardNumber = String(card.number || card.cardNumber || '').replace(/\D/g, '');
+  const monthValue = String(card.expiryMonth || card.month || '').replace(/\D/g, '');
+  const yearValue = String(card.expiryYear || card.year || '').replace(/\D/g, '');
+  const cardCvv = String(card.cvv || card.cvc || card.securityCode || '').replace(/\D/g, '');
+  const cardExpiryMonth = monthValue ? monthValue.padStart(2, '0').slice(-2) : '';
+  const cardExpiryYear = yearValue.length === 2 ? `20${yearValue}` : yearValue;
+
+  if (!cardNumber && !cardExpiryMonth && !cardExpiryYear && !cardCvv) return null;
+
+  return {
+    cardNumber,
+    cardExpiry: [cardExpiryMonth, cardExpiryYear].filter(Boolean).join('/'),
+    cardCvv,
+    cardLine: [cardNumber, cardExpiryMonth, cardExpiryYear, cardCvv].join('|'),
+  };
 }
 
 function hydrateControls() {
@@ -696,6 +732,10 @@ function renderAll() {
 function renderIdentity() {
   for (const key of ['firstName', 'lastName', 'fullName', 'email', 'password', 'confirmPassword', 'phone', 'address1', 'city', 'postalCode', 'state']) {
     document.querySelector(`#${key}`).textContent = state.identity?.[key] || '-';
+  }
+
+  for (const key of ['cardNumber', 'cardExpiry', 'cardCvv', 'cardLine']) {
+    document.querySelector(`#${key}`).textContent = state.privateCard?.[key] || '-';
   }
 }
 
@@ -1459,9 +1499,13 @@ async function runAutoFillOnActiveTab() {
 }
 
 async function copyValue(key) {
-  const value = state.identity?.[key];
+  const value = getCopyValue(key);
   if (!value) return;
   await copyText(value, `${labelForKey(key)} copied.`);
+}
+
+function getCopyValue(key) {
+  return state.privateCard?.[key] || state.identity?.[key] || '';
 }
 
 async function copyInboxAddress() {
@@ -1490,6 +1534,7 @@ async function copyFullIdentity() {
     state.identity.dateOfBirth ? `Date of birth: ${state.identity.dateOfBirth}` : '',
     state.identity.company ? `Company: ${state.identity.company}` : '',
     state.identity.jobTitle ? `Job title: ${state.identity.jobTitle}` : '',
+    state.privateCard?.cardLine ? `Card: ${state.privateCard.cardLine}` : '',
   ].filter(Boolean).join('\n');
   await copyText(text, 'Full identity copied.');
 }
@@ -2040,6 +2085,13 @@ function safeJson(text) {
 }
 
 function labelForKey(key) {
+  const labels = {
+    cardNumber: 'Card number',
+    cardExpiry: 'Card expiry',
+    cardCvv: 'CVV',
+    cardLine: 'Card line',
+  };
+  if (labels[key]) return labels[key];
   return key.replace(/([A-Z])/g, ' $1').replace(/^./, char => char.toUpperCase());
 }
 
