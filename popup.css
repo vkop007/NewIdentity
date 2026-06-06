@@ -799,6 +799,28 @@ button {
   width: 100%;
 }
 
+.proxy-candidates-heading {
+  align-items: flex-end;
+}
+
+.proxy-country-select {
+  width: 138px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  outline: none;
+}
+
+.proxy-country-select:focus {
+  border-color: rgba(59, 130, 246, 0.72);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.16);
+}
+
 .proxy-current {
   margin: 0;
   color: var(--muted);
