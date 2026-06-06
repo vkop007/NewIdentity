@@ -46,6 +46,12 @@
     'country-name': 'country',
     organization: 'company',
     'organization-title': 'jobTitle',
+    'cc-name': 'cardName',
+    'cc-number': 'cardNumber',
+    'cc-exp': 'cardExpiry',
+    'cc-exp-month': 'cardExpiryMonth',
+    'cc-exp-year': 'cardExpiryYear',
+    'cc-csc': 'cardCvv',
     bday: 'dateOfBirth',
     'bday-day': 'birthDay',
     'bday-month': 'birthMonth',
@@ -54,6 +60,12 @@
     url: 'website',
   };
   const FIELD_RULES = [
+    ['cardName', ['name on card', 'cardholder name', 'card holder name', 'cc name']],
+    ['cardCvv', ['security code', 'card security code', 'cvv', 'cvc', 'csc', 'card code']],
+    ['cardExpiry', ['card expiry', 'credit card expiry', 'expiration date', 'expiry date', 'expires']],
+    ['cardExpiryMonth', ['expiry month', 'expiration month', 'card month', 'cc month']],
+    ['cardExpiryYear', ['expiry year', 'expiration year', 'card year', 'cc year']],
+    ['cardNumber', ['card number', 'credit card number', 'cc number', 'cc num', 'payment card number']],
     ['confirmPassword', ['confirm password', 'password confirmation', 'repeat password', 'retype password', 'verify password', 'confirm pass']],
     ['password', ['new password', 'create password', 'password', 'passcode']],
     ['birthDay', ['birth day', 'birthday day', 'date day', 'dob day', 'day of birth']],
@@ -335,14 +347,6 @@
       'otp',
       'current password',
       'old password',
-      'credit card',
-      'card number',
-      'cc number',
-      'cc num',
-      'cvc',
-      'cvv',
-      'expiry',
-      'expiration',
       'iban',
       'routing number',
       'bank account',
@@ -404,6 +408,12 @@
       prefix: [identity.prefix, identity.title, identity.genderShort === 'F' ? 'Ms' : 'Mr'],
       company: [identity.company, identity.organization],
       jobTitle: [identity.jobTitle, identity.occupation],
+      cardName: identity.cardAutofillEnabled ? [identity.cardName, identity.fullName] : [],
+      cardNumber: identity.cardAutofillEnabled ? [identity.cardNumber] : [],
+      cardExpiry: identity.cardAutofillEnabled ? [identity.cardExpiry] : [],
+      cardExpiryMonth: identity.cardAutofillEnabled ? [identity.cardExpiryMonth] : [],
+      cardExpiryYear: identity.cardAutofillEnabled ? [identity.cardExpiryYear] : [],
+      cardCvv: identity.cardAutofillEnabled ? [identity.cardCvv] : [],
     }[key] || [identity[key]];
 
     return unique(values.map(value => value == null ? '' : String(value)).filter(Boolean));
@@ -487,6 +497,15 @@
     profile.birthMonthName ||= MONTH_NAMES[birth.month - 1];
     profile.birthYear ||= birth.year;
     profile.age ||= birth.age;
+    profile.cardAutofillEnabled = Boolean(profile.cardAutofillEnabled);
+    if (!profile.cardAutofillEnabled) {
+      profile.cardName = '';
+      profile.cardNumber = '';
+      profile.cardExpiry = '';
+      profile.cardExpiryMonth = '';
+      profile.cardExpiryYear = '';
+      profile.cardCvv = '';
+    }
 
     return profile;
   }

@@ -34,6 +34,7 @@ const DEFAULT_PROXY_STATE = {
   country: DEFAULT_PROXY_COUNTRY,
   enabled: false,
   connected: false,
+  autoReconnect: true,
   proxies: [],
   currentProxy: null,
   lastRefreshAt: '',
@@ -108,6 +109,11 @@ async function handleProxyMessage(message = {}) {
         ok: true,
         state: await getPublicProxyState(await setProxyCountry(message.country)),
       };
+    case 'proxy:setAutoReconnect':
+      return {
+        ok: true,
+        state: await getPublicProxyState(await setProxyAutoReconnect(message.enabled)),
+      };
     case 'proxy:saveWebshareToken':
       return {
         ok: true,
@@ -168,7 +174,18 @@ async function refreshProxyList({ silent = false } = {}) {
           error: '',
         };
       } catch {
-        nextState = await recoverProxyConnection(nextState, country);
+        if (nextState.autoReconnect !== false) {
+          nextState = await recoverProxyConnection(nextState, country);
+        } else {
+          await clearProxy().catch(() => {});
+          nextState = {
+            ...nextState,
+            enabled: false,
+            connected: false,
+            currentProxy: null,
+            error: `Active ${country} proxy failed. Browser proxy was turned off.`,
+          };
+        }
       }
     }
 
@@ -372,6 +389,17 @@ async function clearWebshareToken() {
   await updateBadge(nextState);
 
   return refreshProxyList({ silent: true });
+}
+
+async function setProxyAutoReconnect(enabled) {
+  const state = await getProxyState();
+  const nextState = {
+    ...state,
+    autoReconnect: Boolean(enabled),
+    error: '',
+  };
+  await setProxyState(nextState);
+  return nextState;
 }
 
 async function setProxyCountry(country) {
