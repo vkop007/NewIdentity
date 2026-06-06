@@ -27,7 +27,9 @@
     "alarms",
     "proxy",
     "scripting",
-    "storage"
+    "storage",
+    "webRequest",
+    "webRequestAuthProvider"
   ],
   "optional_host_permissions": [
     "http://*/*",
@@ -41,6 +43,7 @@
     "https://api.country.is/*",
     "https://cdn.jsdelivr.net/*",
     "https://ipwho.is/*",
+    "https://proxy.webshare.io/*",
     "https://proxylist.geonode.com/*"
   ]
 }

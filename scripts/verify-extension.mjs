@@ -52,8 +52,12 @@ function checkManifest(manifest) {
 
   assert(manifest.background?.service_worker === 'background.js', 'Manifest background service worker must point to background.js.');
 
-  for (const permission of ['activeTab', 'alarms', 'proxy', 'scripting', 'storage']) {
+  for (const permission of ['activeTab', 'alarms', 'proxy', 'scripting', 'storage', 'webRequest', 'webRequestAuthProvider']) {
     assert(manifest.permissions?.includes(permission), `Manifest is missing the ${permission} permission.`);
+  }
+
+  for (const origin of ['http://*/*', 'https://*/*']) {
+    assert(manifest.optional_host_permissions?.includes(origin), `Manifest is missing optional host permission ${origin}.`);
   }
 
   for (const host of [
@@ -64,6 +68,7 @@ function checkManifest(manifest) {
     'https://api.country.is/*',
     'https://cdn.jsdelivr.net/*',
     'https://ipwho.is/*',
+    'https://proxy.webshare.io/*',
     'https://proxylist.geonode.com/*',
   ]) {
     assert(manifest.host_permissions?.includes(host), `Manifest is missing host permission ${host}.`);

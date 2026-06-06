@@ -1,4 +1,5 @@
 const GEONODE_BASE_URL = 'https://proxylist.geonode.com/api/proxy-list?page=1&limit=500&sort_by=lastChecked&sort_type=desc';
+const WEBSHARE_API_BASE_URL = 'https://proxy.webshare.io/api/v2/proxy/list/?mode=direct&page=1&page_size=100&valid=true';
 const PROXIFLY_API_BASE_URL = 'https://api.proxifly.dev/proxy?protocol=http&https=true&quantity=20&format=json';
 const PROXIFLY_COUNTRY_BASE_URL = 'https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/countries';
 const PROXYSCRAPE_BASE_URL = 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=displayproxies&proxy_format=protocolipport&format=text&protocol=http&ssl=yes&anonymity=elite,anonymous&timeout=5000&limit=2000';
@@ -7,6 +8,7 @@ const PROXY_VERIFY_URLS = [
   'https://ipwho.is/',
 ];
 const PROXY_STATE_KEY = 'newIdentity.proxy';
+const PROXY_SECRET_KEY = 'newIdentity.proxySecrets';
 const PROXY_REFRESH_ALARM = 'newIdentity.proxy.refresh';
 const REFRESH_PERIOD_MINUTES = 1;
 const DEFAULT_PROXY_COUNTRY = 'US';
@@ -20,11 +22,13 @@ const PROTOCOL_PRIORITY = {
   socks5: 2,
   socks4: 3,
 };
+const WEBSHARE_PROVIDER = 'Webshare Free';
 const SOURCE_PRIORITY = {
-  'Proxifly API': 0,
-  ProxyScrape: 1,
-  Proxifly: 2,
-  Geonode: 3,
+  [WEBSHARE_PROVIDER]: 0,
+  'Proxifly API': 1,
+  ProxyScrape: 2,
+  Proxifly: 3,
+  Geonode: 4,
 };
 const DEFAULT_PROXY_STATE = {
   country: DEFAULT_PROXY_COUNTRY,
@@ -35,6 +39,19 @@ const DEFAULT_PROXY_STATE = {
   lastRefreshAt: '',
   error: '',
 };
+const DEFAULT_PROXY_SECRETS = {
+  webshareToken: '',
+};
+
+let activeProxyAuth = null;
+
+if (chrome.webRequest?.onAuthRequired) {
+  chrome.webRequest.onAuthRequired.addListener(
+    handleProxyAuthRequired,
+    { urls: ['<all_urls>'] },
+    ['blocking']
+  );
+}
 
 chrome.runtime.onInstalled.addListener(() => {
   setupProxyRefresh();
@@ -67,24 +84,8 @@ async function setupProxyRefresh() {
 
   const state = await getProxyState();
   if (state.enabled && state.currentProxy) {
-    try {
-      await clearProxy();
-      await setProxyState({
-        ...state,
-        enabled: false,
-        connected: false,
-        currentProxy: null,
-        error: `Browser proxy was turned off after reload. Connect again to test a fresh ${state.country || DEFAULT_PROXY_COUNTRY} route.`,
-      });
-    } catch (error) {
-      await setProxyState({
-        ...state,
-        enabled: false,
-        connected: false,
-        currentProxy: null,
-        error: error instanceof Error ? error.message : 'Unable to reset browser proxy.',
-      });
-    }
+    setActiveProxyAuth(state.currentProxy);
+    await updateBadge(state);
   }
 
   await refreshProxyList({ silent: true });
@@ -95,32 +96,42 @@ async function handleProxyMessage(message = {}) {
     case 'proxy:getState':
       return {
         ok: true,
-        state: await getProxyState(),
+        state: await getPublicProxyState(),
       };
     case 'proxy:refresh':
       return {
         ok: true,
-        state: await refreshProxyList(),
+        state: await getPublicProxyState(await refreshProxyList()),
       };
     case 'proxy:setCountry':
       return {
         ok: true,
-        state: await setProxyCountry(message.country),
+        state: await getPublicProxyState(await setProxyCountry(message.country)),
+      };
+    case 'proxy:saveWebshareToken':
+      return {
+        ok: true,
+        state: await getPublicProxyState(await saveWebshareToken(message.token)),
+      };
+    case 'proxy:clearWebshareToken':
+      return {
+        ok: true,
+        state: await getPublicProxyState(await clearWebshareToken()),
       };
     case 'proxy:connectBest':
       return {
         ok: true,
-        state: await connectBestProxy(),
+        state: await getPublicProxyState(await connectBestProxy()),
       };
     case 'proxy:connectProxy':
       return {
         ok: true,
-        state: await connectProxyById(message.proxyId),
+        state: await getPublicProxyState(await connectProxyById(message.proxyId)),
       };
     case 'proxy:disconnect':
       return {
         ok: true,
-        state: await disconnectProxy(),
+        state: await getPublicProxyState(await disconnectProxy()),
       };
     default:
       return {
@@ -157,14 +168,7 @@ async function refreshProxyList({ silent = false } = {}) {
           error: '',
         };
       } catch {
-        await clearProxy();
-        nextState = {
-          ...nextState,
-          enabled: false,
-          connected: false,
-          currentProxy: null,
-          error: 'Active proxy failed the tunnel test. Browser proxy was turned off.',
-        };
+        nextState = await recoverProxyConnection(nextState, country);
       }
     }
 
@@ -222,6 +226,33 @@ async function connectProxyById(proxyId) {
   return connectFirstWorkingProxy(candidates, state);
 }
 
+async function recoverProxyConnection(state, country) {
+  const currentId = state.currentProxy?.id || '';
+  const candidates = uniqueProxies((state.proxies || []).filter(proxy => proxy.id !== currentId));
+
+  for (const proxy of candidates.slice(0, MAX_CONNECT_ATTEMPTS)) {
+    try {
+      const recovered = await connectProxy(proxy, state, { statusMessage: 'Active proxy failed. Switched to a fresh route.' });
+      return {
+        ...recovered,
+        proxies: state.proxies,
+        lastRefreshAt: state.lastRefreshAt,
+      };
+    } catch {
+      // Keep searching for a route that can still tunnel browser traffic.
+    }
+  }
+
+  await clearProxy().catch(() => {});
+  return {
+    ...state,
+    enabled: false,
+    connected: false,
+    currentProxy: null,
+    error: `Active ${country} proxy failed. No fallback route connected, so browser proxy was turned off.`,
+  };
+}
+
 async function connectFirstWorkingProxy(candidates, state) {
   const country = normalizeCountryCode(state.country) || DEFAULT_PROXY_COUNTRY;
 
@@ -247,7 +278,7 @@ async function connectFirstWorkingProxy(candidates, state) {
   throw new Error(nextState.error);
 }
 
-async function connectProxy(proxy, state = DEFAULT_PROXY_STATE) {
+async function connectProxy(proxy, state = DEFAULT_PROXY_STATE, options = {}) {
   const country = normalizeCountryCode(state.country) || DEFAULT_PROXY_COUNTRY;
   await applyProxy(proxy);
   let verification;
@@ -271,7 +302,7 @@ async function connectProxy(proxy, state = DEFAULT_PROXY_STATE) {
     enabled: true,
     connected: true,
     currentProxy: verifiedProxy,
-    error: '',
+    error: options.statusMessage || '',
   };
   await setProxyState(nextState);
   await updateBadge(nextState);
@@ -291,6 +322,56 @@ async function disconnectProxy() {
   await setProxyState(nextState);
   await updateBadge(nextState);
   return nextState;
+}
+
+async function saveWebshareToken(token) {
+  const webshareToken = String(token || '').trim();
+  if (!webshareToken) throw new Error('Paste a Webshare API token first.');
+
+  const secrets = await getProxySecrets();
+  await setProxySecrets({
+    ...secrets,
+    webshareToken,
+  });
+
+  const state = await getProxyState();
+  await setProxyState({
+    ...state,
+    proxies: [],
+    lastRefreshAt: '',
+    error: 'Webshare free source saved. Refreshing stable routes.',
+  });
+
+  return refreshProxyList();
+}
+
+async function clearWebshareToken() {
+  const state = await getProxyState();
+  const wasUsingWebshare = state.currentProxy?.provider === WEBSHARE_PROVIDER;
+
+  await setProxySecrets({
+    ...(await getProxySecrets()),
+    webshareToken: '',
+  });
+
+  if (wasUsingWebshare) {
+    await clearProxy().catch(() => {});
+  }
+
+  const publicProxies = (state.proxies || []).filter(proxy => proxy.provider !== WEBSHARE_PROVIDER);
+  const nextState = {
+    ...state,
+    enabled: wasUsingWebshare ? false : state.enabled,
+    connected: wasUsingWebshare ? false : state.connected,
+    currentProxy: wasUsingWebshare ? null : state.currentProxy,
+    proxies: publicProxies,
+    lastRefreshAt: '',
+    error: '',
+  };
+  await setProxyState(nextState);
+  await updateBadge(nextState);
+
+  return refreshProxyList({ silent: true });
 }
 
 async function setProxyCountry(country) {
@@ -317,7 +398,8 @@ async function setProxyCountry(country) {
 }
 
 async function requestProxyList(country) {
-  const results = await Promise.allSettled(getProxySources(country).map(source => fetchProxySource(source, country)));
+  const secrets = await getProxySecrets();
+  const results = await Promise.allSettled(getProxySources(country, secrets).map(source => fetchProxySource(source, country)));
   const proxies = uniqueProxies(results
     .filter(result => result.status === 'fulfilled')
     .flatMap(result => result.value))
@@ -332,9 +414,17 @@ async function requestProxyList(country) {
     : new Error(`No proxy provider returned a working ${country} route list.`);
 }
 
-function getProxySources(country) {
+function getProxySources(country, secrets = DEFAULT_PROXY_SECRETS) {
   const encodedCountry = encodeURIComponent(country);
   return [
+    ...(secrets.webshareToken ? [{
+      name: WEBSHARE_PROVIDER,
+      url: `${WEBSHARE_API_BASE_URL}&country_code__in=${encodedCountry}`,
+      parser: 'webshare-api',
+      headers: {
+        authorization: `Token ${secrets.webshareToken}`,
+      },
+    }] : []),
     {
       name: 'Proxifly API',
       url: `${PROXIFLY_API_BASE_URL}&country=${encodedCountry}`,
@@ -362,11 +452,16 @@ async function fetchProxySource(source, country) {
   const response = await fetch(source.url, {
     method: 'GET',
     headers: {
-      accept: ['geonode', 'proxifly-api'].includes(source.parser) ? 'application/json' : 'text/plain',
+      accept: ['geonode', 'proxifly-api', 'webshare-api'].includes(source.parser) ? 'application/json' : 'text/plain',
+      ...(source.headers || {}),
     },
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`${source.name} proxy request failed with status ${response.status}.`);
+
+  if (source.parser === 'webshare-api') {
+    return parseWebsharePayload(safeJson(text), source.name, country);
+  }
 
   if (source.parser === 'proxifly-api') {
     return parseProxiflyPayload(safeJson(text), source.name, country);
@@ -382,6 +477,48 @@ async function fetchProxySource(source, country) {
   return parseProxyUrlList(text)
     .map((proxyUrl, index) => normalizeProxyUrl(proxyUrl, source.name, index, country))
     .filter(Boolean);
+}
+
+function parseWebsharePayload(payload, provider, country) {
+  const proxies = Array.isArray(payload?.results) ? payload.results : [];
+  return proxies
+    .map((proxy, index) => normalizeWebshareProxy(proxy, provider, index, country))
+    .filter(Boolean);
+}
+
+function normalizeWebshareProxy(proxy, provider, sourceIndex, targetCountry) {
+  if (!proxy || proxy.valid === false) return null;
+
+  const country = normalizeCountryCode(proxy.country_code || proxy.country);
+  if (country && country !== targetCountry) return null;
+
+  const host = String(proxy.proxy_address || proxy.host || '').trim();
+  const port = Number(proxy.port);
+  const username = String(proxy.username || '').trim();
+  const password = String(proxy.password || '').trim();
+
+  if (!host || !Number.isInteger(port) || port <= 0 || port > 65535) return null;
+  if (!username || !password) return null;
+
+  return {
+    id: `${provider}:http:${host}:${port}`,
+    host,
+    port,
+    protocol: 'http',
+    country: targetCountry,
+    city: String(proxy.city_name || proxy.city || ''),
+    region: '',
+    anonymityLevel: 'authenticated',
+    responseTime: 0,
+    latency: 0,
+    uptime: proxy.valid === true ? 100 : 0,
+    lastChecked: normalizeLastChecked('', proxy.last_verification || proxy.updated_at || proxy.created_at),
+    provider,
+    sourceIndex,
+    authenticated: true,
+    username,
+    password,
+  };
 }
 
 function parseProxiflyPayload(payload, provider, country) {
@@ -571,6 +708,7 @@ function isProxyListStale(value) {
 }
 
 function applyProxy(proxy) {
+  setActiveProxyAuth(proxy);
   return proxySettingsSet({
     mode: 'fixed_servers',
     rules: {
@@ -585,11 +723,42 @@ function applyProxy(proxy) {
 }
 
 function clearProxy() {
+  activeProxyAuth = null;
   return proxySettingsClear();
 }
 
 function chromeProxyScheme(protocol) {
   return protocol === 'https' ? 'http' : protocol;
+}
+
+function setActiveProxyAuth(proxy) {
+  if (!proxy?.username || !proxy?.password) {
+    activeProxyAuth = null;
+    return;
+  }
+
+  activeProxyAuth = {
+    host: proxy.host,
+    port: proxy.port,
+    username: proxy.username,
+    password: proxy.password,
+  };
+}
+
+function handleProxyAuthRequired(details) {
+  if (!details?.isProxy || !activeProxyAuth) return {};
+
+  const challengerHost = String(details.challenger?.host || '');
+  const challengerPort = Number(details.challenger?.port || 0);
+  if (challengerHost && challengerHost !== activeProxyAuth.host) return {};
+  if (challengerPort && challengerPort !== activeProxyAuth.port) return {};
+
+  return {
+    authCredentials: {
+      username: activeProxyAuth.username,
+      password: activeProxyAuth.password,
+    },
+  };
 }
 
 async function verifyProxyTunnel(targetCountry) {
@@ -657,6 +826,40 @@ async function getProxyState() {
 
 function setProxyState(state) {
   return storageSet({ [PROXY_STATE_KEY]: state });
+}
+
+async function getProxySecrets() {
+  const stored = await storageGet(PROXY_SECRET_KEY);
+  return {
+    ...DEFAULT_PROXY_SECRETS,
+    ...(stored[PROXY_SECRET_KEY] || {}),
+  };
+}
+
+function setProxySecrets(secrets) {
+  return storageSet({ [PROXY_SECRET_KEY]: secrets });
+}
+
+async function getPublicProxyState(state = null) {
+  const proxyState = state || await getProxyState();
+  const secrets = await getProxySecrets();
+  const proxies = Array.isArray(proxyState.proxies) ? proxyState.proxies : [];
+  return {
+    ...proxyState,
+    proxies: proxies.map(sanitizeProxyForPopup),
+    currentProxy: sanitizeProxyForPopup(proxyState.currentProxy),
+    webshareConfigured: Boolean(secrets.webshareToken),
+    webshareRouteCount: proxies.filter(proxy => proxy.provider === WEBSHARE_PROVIDER).length,
+  };
+}
+
+function sanitizeProxyForPopup(proxy) {
+  if (!proxy) return null;
+  const { username, password, ...safeProxy } = proxy;
+  return {
+    ...safeProxy,
+    authenticated: Boolean(proxy.authenticated || (username && password)),
+  };
 }
 
 async function updateBadge(state = null) {
