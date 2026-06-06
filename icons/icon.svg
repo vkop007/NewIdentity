@@ -16,9 +16,9 @@
     </filter>
   </defs>
 
-  <path d="M64 21 101 42.5v43L64 107 27 85.5v-43L64 21Z" fill="#071a35" fill-opacity="0.92" stroke="url(#edge)" stroke-width="5" filter="url(#glow)" />
-  <path d="M64 38v52M45.5 49 82.5 70.5M82.5 49 45.5 70.5" fill="none" stroke="url(#mark)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
-  <path d="M48 78.5 64 88l16-9.5" fill="none" stroke="#7dd3fc" stroke-opacity="0.9" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="96" cy="32" r="7" fill="#38bdf8" opacity="0.95" />
-  <circle cx="96" cy="32" r="12" fill="none" stroke="#38bdf8" stroke-opacity="0.18" stroke-width="4" />
+  <path d="M64 8 116 38v52l-52 30-52-30V38L64 8Z" fill="#071a35" fill-opacity="0.92" stroke="url(#edge)" stroke-width="7" filter="url(#glow)" />
+  <path d="M64 29v69M39 43l50 29M89 43 39 72" fill="none" stroke="url(#mark)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M42 82 64 95l22-13" fill="none" stroke="#7dd3fc" stroke-opacity="0.9" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="103" cy="25" r="8" fill="#38bdf8" opacity="0.95" />
+  <circle cx="103" cy="25" r="14" fill="none" stroke="#38bdf8" stroke-opacity="0.18" stroke-width="5" />
 </svg>
