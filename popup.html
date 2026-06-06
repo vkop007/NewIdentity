@@ -24,6 +24,7 @@
       <nav class="tabs" aria-label="Extension sections">
         <button class="tab active" data-tab="home" type="button">Home</button>
         <button class="tab" data-tab="messages" type="button">Inbox</button>
+        <button class="tab" data-tab="proxy" type="button">Proxy</button>
         <button class="tab" data-tab="settings" type="button">Settings</button>
       </nav>
 
@@ -142,6 +143,57 @@
           <button class="ghost-button danger" id="clearHistoryBtn" type="button">Clear</button>
         </div>
         <div class="history-list" id="historyList"></div>
+      </section>
+
+      <section class="tab-panel" data-panel="proxy">
+        <div class="section-heading">
+          <div>
+            <span id="proxyCountryEyebrow">US proxy</span>
+            <h2>Browser location</h2>
+          </div>
+          <button class="ghost-button action-pill" id="proxyRefreshBtn" type="button">Refresh</button>
+        </div>
+
+        <section class="proxy-card">
+          <div class="proxy-status-row">
+            <div>
+              <span>Connection</span>
+              <strong id="proxyBadge">Off</strong>
+            </div>
+            <span class="proxy-signal" id="proxySignal" aria-hidden="true"></span>
+          </div>
+          <p class="proxy-card-status status-line" id="proxyStatusLine" role="status" aria-live="polite">Proxy list refreshes every minute from ProxyScrape, Proxifly, and Geonode.</p>
+
+          <div class="proxy-metrics">
+            <div>
+              <span id="proxyCountLabel">Working US</span>
+              <strong id="proxyCount">0</strong>
+            </div>
+            <div>
+              <span>Active route</span>
+              <strong id="proxyActive">None</strong>
+            </div>
+            <div>
+              <span>Checked</span>
+              <strong id="proxyChecked">Never</strong>
+            </div>
+          </div>
+
+          <div class="proxy-actions">
+            <button class="primary-action proxy-toggle" id="proxyToggleBtn" type="button">Connect USA</button>
+          </div>
+
+          <p class="proxy-current" id="proxyCurrent">No browser proxy active.</p>
+        </section>
+
+        <div class="section-heading compact proxy-candidates-heading">
+          <div>
+            <span>Live routes</span>
+            <h2>Fresh candidates</h2>
+          </div>
+          <select class="proxy-country-select" id="proxyCountrySelect" aria-label="Proxy country"></select>
+        </div>
+        <div class="proxy-list" id="proxyList"></div>
       </section>
 
       <section class="tab-panel" data-panel="settings">

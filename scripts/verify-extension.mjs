@@ -5,6 +5,7 @@ import path from 'node:path';
 const root = process.cwd();
 const requiredFiles = [
   'manifest.json',
+  'background.js',
   'popup.html',
   'popup.css',
   'popup.js',
@@ -49,11 +50,22 @@ function checkManifest(manifest) {
   assert(/^\d+\.\d+\.\d+$/.test(manifest.version || ''), 'Manifest version must be semver-like, for example 1.0.0.');
   assert(manifest.action?.default_popup === 'popup.html', 'Manifest action must point to popup.html.');
 
-  for (const permission of ['activeTab', 'scripting', 'storage']) {
+  assert(manifest.background?.service_worker === 'background.js', 'Manifest background service worker must point to background.js.');
+
+  for (const permission of ['activeTab', 'alarms', 'proxy', 'scripting', 'storage']) {
     assert(manifest.permissions?.includes(permission), `Manifest is missing the ${permission} permission.`);
   }
 
-  for (const host of ['https://api.catchmail.io/*', 'https://api.mail.tm/*']) {
+  for (const host of [
+    'https://api.catchmail.io/*',
+    'https://api.mail.tm/*',
+    'https://api.proxifly.dev/*',
+    'https://api.proxyscrape.com/*',
+    'https://api.country.is/*',
+    'https://cdn.jsdelivr.net/*',
+    'https://ipwho.is/*',
+    'https://proxylist.geonode.com/*',
+  ]) {
     assert(manifest.host_permissions?.includes(host), `Manifest is missing host permission ${host}.`);
   }
 
@@ -89,8 +101,10 @@ for (const file of requiredFiles) {
 const manifest = parseManifest();
 checkManifest(manifest);
 checkPopupHtml();
+checkJavaScript('background.js');
 checkJavaScript('popup.js');
 checkJavaScript('content-autofill.js');
+checkSecurityText('background.js');
 checkSecurityText('popup.js');
 checkSecurityText('content-autofill.js');
 

@@ -117,8 +117,8 @@ button {
 
 .tabs {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
   padding: 5px;
   margin-bottom: 14px;
   border: 1px solid var(--line);
@@ -128,11 +128,12 @@ button {
 }
 
 .tab {
-  min-height: 40px;
+  min-height: 38px;
   border: 0;
   border-radius: 12px;
   background: transparent;
   color: var(--muted);
+  font-size: 12px;
   font-weight: 760;
 }
 
@@ -151,6 +152,11 @@ button {
 }
 
 .tab-panel[data-panel="settings"].active {
+  display: grid;
+  gap: 10px;
+}
+
+.tab-panel[data-panel="proxy"].active {
   display: grid;
   gap: 10px;
 }
@@ -353,7 +359,8 @@ button {
 
 .message-list,
 .history-list,
-.inbox-list {
+.inbox-list,
+.proxy-list {
   display: grid;
   gap: 8px;
 }
@@ -362,7 +369,9 @@ button {
 .history-card,
 .switch-card,
 .inbox-card,
-.provider-card {
+.provider-card,
+.proxy-card,
+.proxy-route {
   border: 1px solid var(--line);
   border-radius: 16px;
   background: rgba(7, 18, 37, 0.82);
@@ -682,6 +691,184 @@ button {
   font-weight: 800;
 }
 
+.proxy-card {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 14px 34px rgba(0, 8, 24, 0.28);
+}
+
+.proxy-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.proxy-status-row div {
+  min-width: 0;
+}
+
+.proxy-status-row span,
+.proxy-route-label,
+.proxy-chip {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.proxy-status-row strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+.proxy-signal {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  border-radius: 999px;
+  background: var(--danger);
+  box-shadow: 0 0 0 5px rgba(251, 113, 133, 0.12);
+}
+
+.proxy-signal.connected {
+  background: var(--success);
+  box-shadow: 0 0 0 5px rgba(34, 211, 238, 0.12);
+}
+
+.proxy-card-status {
+  min-height: 18px;
+  margin: -3px 0 1px;
+  padding: 9px 11px;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.08);
+  overflow-wrap: anywhere;
+}
+
+.proxy-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.proxy-metrics div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 13px;
+  background: rgba(10, 16, 32, 0.82);
+}
+
+.proxy-metrics span {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.proxy-metrics strong {
+  display: block;
+  min-width: 0;
+  margin-top: 6px;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.proxy-toggle {
+  width: 100%;
+}
+
+.proxy-current {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.proxy-route {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  color: inherit;
+  text-align: left;
+}
+
+.proxy-route.active {
+  border-color: rgba(34, 211, 238, 0.56);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.proxy-route-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.proxy-route-header div {
+  min-width: 0;
+}
+
+.proxy-route strong {
+  display: block;
+  min-width: 0;
+  margin-top: 4px;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-route small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.proxy-route-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.proxy-chip {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 8px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary);
+  white-space: nowrap;
+}
+
 .provider-card {
   display: grid;
   gap: 5px;
@@ -787,8 +974,14 @@ button {
   .history-card,
   .empty-state,
   .switch-card,
-  .provider-card {
+  .provider-card,
+  .proxy-card,
+  .proxy-route {
     background: rgba(7, 18, 37, 0.82);
+  }
+
+  .proxy-route.active {
+    background: rgba(34, 211, 238, 0.08);
   }
 
   .inbox-card {

@@ -19,8 +19,13 @@
       "128": "icons/icon-128.png"
     }
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "permissions": [
     "activeTab",
+    "alarms",
+    "proxy",
     "scripting",
     "storage"
   ],
@@ -30,6 +35,12 @@
   ],
   "host_permissions": [
     "https://api.catchmail.io/*",
-    "https://api.mail.tm/*"
+    "https://api.mail.tm/*",
+    "https://api.proxifly.dev/*",
+    "https://api.proxyscrape.com/*",
+    "https://api.country.is/*",
+    "https://cdn.jsdelivr.net/*",
+    "https://ipwho.is/*",
+    "https://proxylist.geonode.com/*"
   ]
 }
