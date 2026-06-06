@@ -1,0 +1,11 @@
+{
+  "name": "new-identity-extension",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Chrome MV3 extension for generating test identities with a temporary inbox.",
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/verify-extension.mjs",
+    "package": "npm run check && mkdir -p dist && zip -qr dist/new-identity-1.0.0.zip manifest.json background.js popup.html popup.css popup.js content-autofill.js icons"
+  }
+}

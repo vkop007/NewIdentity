@@ -4,12 +4,14 @@ const CATCHMAIL_BASE = 'https://api.catchmail.io';
 const CATCHMAIL_DOMAIN = 'catchmail.io';
 const AUTOFILL_ORIGINS = ['http://*/*', 'https://*/*'];
 const AUTOFILL_SCRIPT_ID = 'new-identity-auto-fill';
+const DEFAULT_PROXY_COUNTRY = 'US';
 
 const STORAGE_KEYS = {
   identity: 'newIdentity.current',
   history: 'newIdentity.history',
   settings: 'newIdentity.settings',
   otp: 'newIdentity.latestOtp',
+  proxy: 'newIdentity.proxy',
 };
 
 const DEFAULT_SETTINGS = {
@@ -460,6 +462,7 @@ let state = {
   history: [],
   inboxMessages: [],
   messageDetails: {},
+  proxy: null,
 };
 
 const els = {
@@ -475,12 +478,26 @@ const els = {
   inboxList: document.querySelector('#inboxList'),
   inboxCount: document.querySelector('#inboxCount'),
   mailboxState: document.querySelector('#mailboxState'),
+  proxyRefreshBtn: document.querySelector('#proxyRefreshBtn'),
+  proxyToggleBtn: document.querySelector('#proxyToggleBtn'),
+  proxyCountrySelect: document.querySelector('#proxyCountrySelect'),
+  proxyCountryEyebrow: document.querySelector('#proxyCountryEyebrow'),
+  proxyCountLabel: document.querySelector('#proxyCountLabel'),
+  proxyBadge: document.querySelector('#proxyBadge'),
+  proxySignal: document.querySelector('#proxySignal'),
+  proxyCount: document.querySelector('#proxyCount'),
+  proxyActive: document.querySelector('#proxyActive'),
+  proxyChecked: document.querySelector('#proxyChecked'),
+  proxyCurrent: document.querySelector('#proxyCurrent'),
+  proxyList: document.querySelector('#proxyList'),
+  proxyStatusLine: document.querySelector('#proxyStatusLine'),
 };
 
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   populateCountries();
+  populateProxyCountries();
   bindEvents();
   await loadState();
   const upgradedIdentity = ensurePasswordFields();
@@ -492,6 +509,7 @@ async function init() {
   }
   hydrateControls();
   await syncAutoFillPermissionState();
+  await loadProxyState(false);
 
   if (!state.identity?.mailbox?.address) {
     await generateIdentity(false);
@@ -510,6 +528,16 @@ function populateCountries() {
   }
 }
 
+function populateProxyCountries() {
+  for (const [code, country] of Object.entries(COUNTRIES)) {
+    const option = document.createElement('option');
+    option.value = code;
+    option.textContent = country.label;
+    els.proxyCountrySelect.append(option);
+  }
+  els.proxyCountrySelect.value = DEFAULT_PROXY_COUNTRY;
+}
+
 function bindEvents() {
   document.querySelectorAll('.tab').forEach(button => {
     button.addEventListener('click', () => activateTab(button.dataset.tab));
@@ -522,6 +550,9 @@ function bindEvents() {
   document.querySelector('#refreshInboxBtn').addEventListener('click', () => refreshInbox(true));
   document.querySelector('#copyInboxBtn').addEventListener('click', copyInboxAddress);
   document.querySelector('#clearHistoryBtn').addEventListener('click', clearHistory);
+  els.proxyRefreshBtn.addEventListener('click', () => refreshProxyList(true));
+  els.proxyToggleBtn.addEventListener('click', toggleProxyConnection);
+  els.proxyCountrySelect.addEventListener('change', handleProxyCountryChange);
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
 
   els.countrySelect.addEventListener('change', () => {
@@ -558,6 +589,10 @@ function activateTab(tab) {
 
   if (tab === 'messages' && state.identity?.mailbox?.address) {
     refreshInbox(false);
+  }
+
+  if (tab === 'proxy') {
+    loadProxyState(false);
   }
 }
 
@@ -648,6 +683,7 @@ function renderAll() {
   renderInbox();
   renderMessages();
   renderHistory();
+  renderProxy();
 }
 
 function renderIdentity() {
@@ -903,6 +939,277 @@ function renderHistory() {
     });
     return button;
   }));
+}
+
+async function loadProxyState(showStatus) {
+  try {
+    const response = await sendProxyMessage('proxy:getState');
+    if (!response?.ok) throw new Error(response?.error || 'Unable to load proxy state.');
+    state.proxy = response.state;
+    renderProxy();
+    if (showStatus) setProxyStatus('Proxy state loaded.', 'success');
+  } catch (error) {
+    renderProxy();
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to load proxy state.', 'error');
+  }
+}
+
+async function refreshProxyList(showStatus) {
+  const country = getProxyCountryCode();
+  if (showStatus) setProxyStatus(`Refreshing ${getProxyCountryLabel(country)} proxies...`, '');
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:refresh');
+    if (!response?.ok) throw new Error(response?.error || 'Unable to refresh proxy list.');
+    state.proxy = response.state;
+    const count = state.proxy?.proxies?.length || 0;
+    const nextCountry = getProxyCountryCode();
+    setProxyStatus(count ? `Found ${count} ${getProxyCountryLabel(nextCountry)} route${count === 1 ? '' : 's'}.` : `No working ${getProxyCountryLabel(nextCountry)} proxy is available right now.`, count ? 'success' : 'error');
+  } catch (error) {
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to refresh proxy list.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
+async function handleProxyCountryChange() {
+  const country = els.proxyCountrySelect.value || DEFAULT_PROXY_COUNTRY;
+  setProxyStatus(`Loading ${getProxyCountryLabel(country)} routes...`, '');
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:setCountry', { country });
+    if (!response?.ok) throw new Error(response?.error || 'Unable to change proxy country.');
+    state.proxy = response.state;
+    const count = state.proxy?.proxies?.length || 0;
+    setProxyStatus(count ? `${getProxyCountryLabel(country)} routes ready.` : `No ${getProxyCountryLabel(country)} routes found right now.`, count ? 'success' : 'error');
+  } catch (error) {
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to change proxy country.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
+async function toggleProxyConnection() {
+  if (state.proxy?.connected) {
+    await disconnectProxy();
+    return;
+  }
+
+  await connectProxy();
+}
+
+async function connectProxy() {
+  const country = getProxyCountryCode();
+  setProxyStatus(`Connecting browser through ${getProxyCountryLabel(country)}...`, '');
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:connectBest');
+    if (!response?.ok) throw new Error(response?.error || 'Unable to connect proxy.');
+    state.proxy = response.state;
+    const proxy = state.proxy?.currentProxy;
+    setProxyStatus(proxy ? `Browser proxy connected through ${formatProxyAddress(proxy)}.` : 'Browser proxy connected.', 'success');
+  } catch (error) {
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to connect proxy.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
+async function connectProxyById(proxyId) {
+  if (!proxyId) return;
+  setProxyStatus(`Switching ${getProxyCountryLabel(getProxyCountryCode())} route...`, '');
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:connectProxy', { proxyId });
+    if (!response?.ok) throw new Error(response?.error || 'Unable to switch proxy.');
+    state.proxy = response.state;
+    const proxy = state.proxy?.currentProxy;
+    setProxyStatus(proxy ? `Browser proxy switched to ${formatProxyAddress(proxy)}.` : 'Browser proxy switched.', 'success');
+  } catch (error) {
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to switch proxy.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
+async function disconnectProxy() {
+  setProxyStatus('Disconnecting browser proxy...', '');
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:disconnect');
+    if (!response?.ok) throw new Error(response?.error || 'Unable to disconnect proxy.');
+    state.proxy = response.state;
+    setProxyStatus('Browser proxy disconnected.', 'success');
+  } catch (error) {
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to disconnect proxy.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
+function renderProxy() {
+  if (!els.proxyList) return;
+
+  const proxyState = state.proxy || {
+    connected: false,
+    proxies: [],
+    currentProxy: null,
+    lastRefreshAt: '',
+    error: '',
+  };
+  const currentProxy = proxyState.currentProxy;
+  const proxies = Array.isArray(proxyState.proxies) ? proxyState.proxies : [];
+  const country = proxyState.country || DEFAULT_PROXY_COUNTRY;
+  const countryButtonLabel = getProxyCountryButtonLabel(country);
+
+  els.proxyCountrySelect.value = country;
+  els.proxyCountryEyebrow.textContent = `${countryButtonLabel} proxy`;
+  els.proxyCountLabel.textContent = `Working ${countryButtonLabel}`;
+  els.proxyBadge.textContent = proxyState.connected ? 'Connected' : 'Off';
+  els.proxySignal.classList.toggle('connected', Boolean(proxyState.connected));
+  els.proxyCount.textContent = String(proxies.length);
+  els.proxyActive.textContent = currentProxy ? currentProxy.protocol.toUpperCase() : 'None';
+  els.proxyChecked.textContent = formatProxyTime(proxyState.lastRefreshAt);
+  els.proxyCurrent.textContent = currentProxy
+    ? `${formatProxyLocation(currentProxy)} via ${formatProxyAddress(currentProxy)}`
+    : 'No browser proxy active.';
+  els.proxyToggleBtn.textContent = proxyState.connected ? 'Disconnect' : `Connect ${countryButtonLabel}`;
+  els.proxyToggleBtn.className = `${proxyState.connected ? 'secondary-action' : 'primary-action'} proxy-toggle`;
+  els.proxyToggleBtn.disabled = !proxyState.connected && proxies.length === 0;
+
+  renderProxyList(proxies, currentProxy?.id || '');
+
+  if (proxyState.error) {
+    setProxyStatus(proxyState.error, 'error');
+  }
+}
+
+function renderProxyList(proxies, currentProxyId) {
+  const visibleProxies = proxies.slice(0, 8);
+  const country = getProxyCountryCode();
+
+  if (!visibleProxies.length) {
+    els.proxyList.replaceChildren(emptyCard(`No ${getProxyCountryButtonLabel(country)} routes yet`, 'Tap Refresh to fetch fresh routes from Proxifly, ProxyScrape, and Geonode.', 'proxy'));
+    return;
+  }
+
+  els.proxyList.replaceChildren(...visibleProxies.map(proxy => createProxyRouteButton(proxy, currentProxyId)));
+}
+
+function createProxyRouteButton(proxy, currentProxyId) {
+  const button = document.createElement('button');
+  button.className = `proxy-route ${proxy.id === currentProxyId ? 'active' : ''}`.trim();
+  button.type = 'button';
+  button.addEventListener('click', () => connectProxyById(proxy.id));
+
+  const header = document.createElement('div');
+  header.className = 'proxy-route-header';
+
+  const copy = document.createElement('div');
+  const label = document.createElement('span');
+  label.className = 'proxy-route-label';
+  label.textContent = proxy.id === currentProxyId ? 'Active route' : 'Available route';
+
+  const title = document.createElement('strong');
+  title.textContent = formatProxyLocation(proxy);
+  copy.append(label, title);
+
+  const checked = document.createElement('small');
+  checked.textContent = formatProxyTime(proxy.lastChecked);
+  header.append(copy, checked);
+
+  const meta = document.createElement('div');
+  meta.className = 'proxy-route-meta';
+  [
+    proxy.provider || '',
+    proxy.verifiedCountry ? `Verified ${proxy.verifiedCountry}` : '',
+    proxy.verifiedIp ? `IP ${proxy.verifiedIp}` : '',
+    proxy.protocol.toUpperCase(),
+    formatProxyMetric(proxy.responseTime || proxy.latency, 'ms'),
+    proxy.uptime ? `${Math.round(proxy.uptime)}% uptime` : '',
+    proxy.anonymityLevel || '',
+  ].filter(Boolean).forEach(value => {
+    const chip = document.createElement('span');
+    chip.className = 'proxy-chip';
+    chip.textContent = value;
+    meta.append(chip);
+  });
+
+  button.append(header, meta);
+  return button;
+}
+
+function setProxyBusy(isBusy) {
+  [els.proxyRefreshBtn, els.proxyToggleBtn, els.proxyCountrySelect].forEach(button => {
+    button.disabled = isBusy;
+  });
+}
+
+function setProxyStatus(message, type = '') {
+  if (!els.proxyStatusLine) return;
+  els.proxyStatusLine.textContent = message;
+  els.proxyStatusLine.className = `proxy-card-status status-line ${type}`.trim();
+}
+
+function sendProxyMessage(type, payload = {}) {
+  return chrome.runtime.sendMessage({ ...payload, type });
+}
+
+function getProxyCountryCode() {
+  return state.proxy?.country || els.proxyCountrySelect?.value || DEFAULT_PROXY_COUNTRY;
+}
+
+function getProxyCountryLabel(code) {
+  return COUNTRIES[code]?.label || code || DEFAULT_PROXY_COUNTRY;
+}
+
+function getProxyCountryButtonLabel(code) {
+  return code === 'US' ? 'USA' : code || DEFAULT_PROXY_COUNTRY;
+}
+
+function formatProxyLocation(proxy) {
+  const country = proxy.verifiedCountry || proxy.country;
+  return [
+    proxy.verifiedCity || proxy.city,
+    proxy.verifiedRegion || proxy.region,
+    getProxyCountryLabel(country),
+  ].filter(Boolean).join(', ') || getProxyCountryLabel(country);
+}
+
+function formatProxyAddress(proxy) {
+  return `${proxy.protocol.toUpperCase()} ${proxy.host}:${proxy.port}`;
+}
+
+function formatProxyMetric(value, suffix) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return '';
+  return `${Math.round(number)} ${suffix}`;
+}
+
+function formatProxyTime(value) {
+  if (!value) return 'Never';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Never';
+
+  const diff = Date.now() - date.getTime();
+  if (diff < 60_000) return 'Now';
+  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
+
+  return date.toLocaleTimeString(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 async function saveSettingsFromControls() {
