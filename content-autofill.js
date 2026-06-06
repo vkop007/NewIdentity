@@ -8,6 +8,8 @@
     otp: 'newIdentity.latestOtp',
   };
   const FIELD_MARK = 'data-new-identity-autofilled';
+  const CARD_FIELD_MARK = 'data-new-identity-card-autofilled';
+  const CARD_MASK_STYLE_ID = 'new-identity-card-mask-style';
   const SKIPPED_INPUT_TYPES = new Set([
     'button',
     'checkbox',
@@ -91,6 +93,13 @@
     ['prefix', ['salutation', 'honorific', 'name prefix']],
     ['fullName', ['full name', 'your name', 'contact name', 'display name', 'name']],
   ];
+  const SENSITIVE_CARD_KEYS = new Set([
+    'cardNumber',
+    'cardExpiry',
+    'cardExpiryMonth',
+    'cardExpiryYear',
+    'cardCvv',
+  ]);
 
   let cachedIdentity = null;
   let cachedSettings = null;
@@ -110,6 +119,7 @@
 
   async function init() {
     try {
+      injectCardMaskStyle();
       const stored = await chrome.storage.local.get(Object.values(STORAGE_KEYS));
       cachedIdentity = stored[STORAGE_KEYS.identity] || null;
       cachedSettings = stored[STORAGE_KEYS.settings] || null;
@@ -173,6 +183,7 @@
       if (!applyValue(field, candidates, key)) continue;
 
       if (options.markFields) field.setAttribute(FIELD_MARK, 'true');
+      markSensitiveCardField(field, key, profile);
       dispatchFieldEvents(field);
       filled += 1;
     }
@@ -436,6 +447,49 @@
       field.value = value;
     }
     return true;
+  }
+
+  function injectCardMaskStyle() {
+    if (document.getElementById(CARD_MASK_STYLE_ID)) return;
+
+    const style = document.createElement('style');
+    style.id = CARD_MASK_STYLE_ID;
+    style.textContent = `
+      input[${CARD_FIELD_MARK}],
+      textarea[${CARD_FIELD_MARK}] {
+        -webkit-text-security: disc !important;
+        caret-color: transparent !important;
+      }
+
+      select[${CARD_FIELD_MARK}] {
+        filter: blur(4px) !important;
+      }
+    `;
+    (document.head || document.documentElement).append(style);
+  }
+
+  function markSensitiveCardField(field, key, identity) {
+    if (!identity.cardAutofillEnabled || !SENSITIVE_CARD_KEYS.has(key)) {
+      clearCardFieldMask(field);
+      return;
+    }
+
+    field.setAttribute(CARD_FIELD_MARK, 'true');
+    if (field.tagName === 'SELECT') {
+      field.style.setProperty('filter', 'blur(4px)', 'important');
+      return;
+    }
+
+    field.style.setProperty('-webkit-text-security', 'disc', 'important');
+    field.style.setProperty('caret-color', 'transparent', 'important');
+  }
+
+  function clearCardFieldMask(field) {
+    if (!field.hasAttribute(CARD_FIELD_MARK)) return;
+    field.removeAttribute(CARD_FIELD_MARK);
+    field.style.removeProperty('-webkit-text-security');
+    field.style.removeProperty('caret-color');
+    field.style.removeProperty('filter');
   }
 
   function findSelectOption(field, candidates, key) {
