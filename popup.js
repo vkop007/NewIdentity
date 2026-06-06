@@ -492,6 +492,10 @@ const els = {
   proxyCurrent: document.querySelector('#proxyCurrent'),
   proxyList: document.querySelector('#proxyList'),
   proxyStatusLine: document.querySelector('#proxyStatusLine'),
+  webshareTokenInput: document.querySelector('#webshareTokenInput'),
+  saveWebshareTokenBtn: document.querySelector('#saveWebshareTokenBtn'),
+  clearWebshareTokenBtn: document.querySelector('#clearWebshareTokenBtn'),
+  proxyStableNote: document.querySelector('#proxyStableNote'),
 };
 
 document.addEventListener('DOMContentLoaded', init);
@@ -554,6 +558,8 @@ function bindEvents() {
   els.proxyRefreshBtn.addEventListener('click', () => refreshProxyList(true));
   els.proxyToggleBtn.addEventListener('click', toggleProxyConnection);
   els.proxyCountrySelect.addEventListener('change', handleProxyCountryChange);
+  els.saveWebshareTokenBtn.addEventListener('click', saveWebshareToken);
+  els.clearWebshareTokenBtn.addEventListener('click', clearWebshareToken);
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
 
   els.countrySelect.addEventListener('change', () => {
@@ -994,6 +1000,52 @@ async function handleProxyCountryChange() {
   }
 }
 
+async function saveWebshareToken() {
+  const token = els.webshareTokenInput.value.trim();
+  if (!token) {
+    setProxyStatus('Paste a Webshare API token first.', 'error');
+    return;
+  }
+
+  setProxyStatus('Saving Webshare free source...', '');
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:saveWebshareToken', { token });
+    if (!response?.ok) throw new Error(response?.error || 'Unable to save Webshare source.');
+    state.proxy = response.state;
+    els.webshareTokenInput.value = '';
+    const count = state.proxy?.webshareRouteCount || 0;
+    setProxyStatus(count ? `Webshare free source ready with ${count} route${count === 1 ? '' : 's'}.` : 'Webshare token saved. No matching route found yet.', count ? 'success' : 'error');
+  } catch (error) {
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to save Webshare source.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
+async function clearWebshareToken() {
+  setProxyStatus('Clearing Webshare free source...', '');
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:clearWebshareToken');
+    if (!response?.ok) throw new Error(response?.error || 'Unable to clear Webshare source.');
+    state.proxy = response.state;
+    els.webshareTokenInput.value = '';
+    if (!state.settings.autoFill) {
+      await removeAutoFillPermission();
+    }
+    setProxyStatus('Webshare free source cleared.', 'success');
+  } catch (error) {
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to clear Webshare source.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
 async function toggleProxyConnection() {
   if (state.proxy?.connected) {
     await disconnectProxy();
@@ -1011,6 +1063,12 @@ async function connectProxy() {
   setProxyBusy(true);
 
   try {
+    const hasAuthenticatedRoutes = state.proxy?.webshareConfigured || (state.proxy?.proxies || []).some(proxy => proxy.authenticated);
+    if (hasAuthenticatedRoutes && !(await requestProxySiteAccess())) {
+      setProxyStatus('Website access is needed for authenticated proxy login.', 'error');
+      return;
+    }
+
     const response = await sendProxyMessage('proxy:connectBest');
     if (!response?.ok) throw new Error(response?.error || 'Unable to connect proxy.');
     state.proxy = response.state;
@@ -1033,6 +1091,12 @@ async function connectProxyById(proxyId) {
   setProxyBusy(true);
 
   try {
+    const targetProxy = (state.proxy?.proxies || []).find(proxy => proxy.id === proxyId);
+    if (targetProxy?.authenticated && !(await requestProxySiteAccess())) {
+      setProxyStatus('Website access is needed for authenticated proxy login.', 'error');
+      return;
+    }
+
     const response = await sendProxyMessage('proxy:connectProxy', { proxyId });
     if (!response?.ok) throw new Error(response?.error || 'Unable to switch proxy.');
     state.proxy = response.state;
@@ -1093,6 +1157,17 @@ function renderProxy() {
   els.proxyCurrent.textContent = currentProxy
     ? `${formatProxyLocation(currentProxy)} via ${formatProxyAddress(currentProxy)}`
     : 'No browser proxy active.';
+  if (els.proxyStableNote) {
+    const stableCount = proxyState.webshareRouteCount || proxies.filter(proxy => proxy.provider === 'Webshare Free').length;
+    els.proxyStableNote.textContent = proxyState.webshareConfigured
+      ? stableCount
+        ? `${stableCount} route${stableCount === 1 ? '' : 's'}`
+        : 'Token saved'
+      : 'Not configured';
+  }
+  if (els.clearWebshareTokenBtn) {
+    els.clearWebshareTokenBtn.disabled = !proxyState.webshareConfigured;
+  }
   const buttonState = getProxyButtonState(proxyState);
   els.proxyToggleBtn.textContent = buttonState.label;
   els.proxyToggleBtn.className = buttonState.className;
@@ -1101,7 +1176,7 @@ function renderProxy() {
   renderProxyList(proxies, currentProxy?.id || '');
 
   if (proxyState.error) {
-    setProxyStatus(proxyState.error, 'error');
+    setProxyStatus(proxyState.error, proxyState.connected ? 'success' : 'error');
   }
 }
 
@@ -1110,7 +1185,7 @@ function renderProxyList(proxies, currentProxyId) {
   const country = getProxyCountryCode();
 
   if (!visibleProxies.length) {
-    els.proxyList.replaceChildren(emptyCard(`No ${getProxyCountryButtonLabel(country)} routes yet`, 'Tap Refresh to fetch fresh routes from Proxifly, ProxyScrape, and Geonode.', 'proxy'));
+    els.proxyList.replaceChildren(emptyCard(`No ${getProxyCountryButtonLabel(country)} routes yet`, 'Tap Refresh to fetch routes from Webshare, Proxifly, ProxyScrape, and Geonode.', 'proxy'));
     return;
   }
 
@@ -1143,6 +1218,7 @@ function createProxyRouteButton(proxy, currentProxyId) {
   meta.className = 'proxy-route-meta';
   [
     proxy.provider || '',
+    proxy.authenticated ? 'Auth' : '',
     proxy.verifiedCountry ? `Verified ${proxy.verifiedCountry}` : '',
     proxy.verifiedIp ? `IP ${proxy.verifiedIp}` : '',
     proxy.protocol.toUpperCase(),
@@ -1161,8 +1237,15 @@ function createProxyRouteButton(proxy, currentProxyId) {
 }
 
 function setProxyBusy(isBusy) {
-  [els.proxyRefreshBtn, els.proxyToggleBtn, els.proxyCountrySelect].forEach(button => {
-    button.disabled = isBusy;
+  [
+    els.proxyRefreshBtn,
+    els.proxyToggleBtn,
+    els.proxyCountrySelect,
+    els.webshareTokenInput,
+    els.saveWebshareTokenBtn,
+    els.clearWebshareTokenBtn,
+  ].filter(Boolean).forEach(control => {
+    control.disabled = isBusy;
   });
 }
 
@@ -1329,7 +1412,14 @@ async function requestAutoFillPermission() {
   return chrome.permissions.request({ origins: AUTOFILL_ORIGINS });
 }
 
+async function requestProxySiteAccess() {
+  if (await hasAutoFillPermission()) return true;
+  setProxyStatus('Chrome will ask for website access to log in to the proxy.', '');
+  return chrome.permissions.request({ origins: AUTOFILL_ORIGINS });
+}
+
 async function removeAutoFillPermission() {
+  if (state.proxy?.connected && state.proxy?.currentProxy?.authenticated) return false;
   if (!(await hasAutoFillPermission())) return false;
   return chrome.permissions.remove({ origins: AUTOFILL_ORIGINS });
 }

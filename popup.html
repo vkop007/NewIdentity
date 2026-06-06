@@ -186,6 +186,24 @@
           <p class="proxy-current" id="proxyCurrent">No browser proxy active.</p>
         </section>
 
+        <section class="proxy-stable-card">
+          <div class="proxy-stable-header">
+            <div>
+              <span>Stable source</span>
+              <strong>Webshare free</strong>
+            </div>
+            <small id="proxyStableNote">Not configured</small>
+          </div>
+          <label class="proxy-token-field">
+            <span>API token</span>
+            <input id="webshareTokenInput" type="password" autocomplete="off" placeholder="Paste token" />
+          </label>
+          <div class="proxy-source-actions">
+            <button class="secondary-action" id="saveWebshareTokenBtn" type="button">Save source</button>
+            <button class="ghost-button danger" id="clearWebshareTokenBtn" type="button">Clear</button>
+          </div>
+        </section>
+
         <div class="section-heading compact proxy-candidates-heading">
           <div>
             <span>Live routes</span>
