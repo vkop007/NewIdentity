@@ -771,7 +771,7 @@ function renderAll() {
 }
 
 function renderIdentity() {
-  for (const key of ['firstName', 'lastName', 'fullName', 'username', 'email', 'password', 'confirmPassword', 'phone', 'address1', 'address2', 'city', 'postalCode', 'state', 'dateOfBirth', 'company', 'jobTitle', 'website']) {
+  for (const key of ['firstName', 'lastName', 'fullName', 'fullNameWithMiddle', 'username', 'email', 'password', 'confirmPassword', 'prefix', 'gender', 'age', 'country', 'phone', 'phoneNational', 'address1', 'address2', 'city', 'postalCode', 'state', 'addressBlock', 'dateOfBirth', 'birthYear', 'birthMonthName', 'birthDay', 'company', 'jobTitle', 'website']) {
     document.querySelector(`#${key}`).textContent = state.identity?.[key] || '-';
   }
 
@@ -1758,15 +1758,23 @@ async function copyFullIdentity() {
     state.identity.fullName,
     state.identity.fullNameWithMiddle ? `Full name with middle: ${state.identity.fullNameWithMiddle}` : '',
     state.identity.username ? `Username: ${state.identity.username}` : '',
+    state.identity.prefix ? `Title: ${state.identity.prefix}` : '',
+    state.identity.gender ? `Gender: ${state.identity.gender}` : '',
+    state.identity.age ? `Age: ${state.identity.age}` : '',
     state.identity.email,
     `Password: ${state.identity.password}`,
     `Confirm password: ${state.identity.confirmPassword}`,
     state.identity.phone,
+    state.identity.phoneNational ? `National phone: ${state.identity.phoneNational}` : '',
     state.identity.address1,
     state.identity.address2,
     `${state.identity.city}, ${state.identity.state} ${state.identity.postalCode}`,
     state.identity.country,
+    state.identity.addressBlock ? `Address block:\n${state.identity.addressBlock}` : '',
     state.identity.dateOfBirth ? `Date of birth: ${state.identity.dateOfBirth}` : '',
+    state.identity.birthYear ? `Birth year: ${state.identity.birthYear}` : '',
+    state.identity.birthMonthName ? `Birth month: ${state.identity.birthMonthName}` : '',
+    state.identity.birthDay ? `Birth day: ${state.identity.birthDay}` : '',
     state.identity.company ? `Company: ${state.identity.company}` : '',
     state.identity.jobTitle ? `Job title: ${state.identity.jobTitle}` : '',
     state.privateCard?.cardLine ? `Card: ${state.privateCard.cardLine}` : '',
@@ -1791,7 +1799,7 @@ function exportProfilesCsv() {
     return;
   }
 
-  const headers = ['fullName', 'username', 'email', 'phone', 'address1', 'address2', 'city', 'state', 'postalCode', 'country', 'dateOfBirth', 'company', 'jobTitle', 'website'];
+  const headers = ['fullName', 'fullNameWithMiddle', 'username', 'prefix', 'gender', 'age', 'email', 'phone', 'phoneNational', 'address1', 'address2', 'city', 'state', 'postalCode', 'country', 'addressBlock', 'dateOfBirth', 'birthYear', 'birthMonthName', 'birthDay', 'company', 'jobTitle', 'website'];
   const lines = [
     headers.join(','),
     ...profiles.map(profile => headers.map(header => csvCell(profile[header])).join(',')),
@@ -2446,6 +2454,13 @@ function safeJson(text) {
 
 function labelForKey(key) {
   const labels = {
+    fullNameWithMiddle: 'Full name with middle',
+    phoneNational: 'National phone',
+    addressBlock: 'Address block',
+    dateOfBirth: 'Date of birth',
+    birthYear: 'Birth year',
+    birthMonthName: 'Birth month',
+    birthDay: 'Birth day',
     cardNumber: 'Card number',
     cardExpiry: 'Card expiry',
     cardCvv: 'CVV',
