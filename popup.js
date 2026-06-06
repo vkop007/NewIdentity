@@ -554,7 +554,7 @@ function populateCountries() {
   for (const [code, country] of Object.entries(COUNTRIES)) {
     const option = document.createElement('option');
     option.value = code;
-    option.textContent = country.label;
+    option.textContent = formatCountryOptionLabel(code, country.label);
     els.countrySelect.append(option);
   }
 }
@@ -563,7 +563,7 @@ function populateProxyCountries() {
   for (const [code, country] of Object.entries(COUNTRIES)) {
     const option = document.createElement('option');
     option.value = code;
-    option.textContent = country.label;
+    option.textContent = formatCountryOptionLabel(code, country.label);
     els.proxyCountrySelect.append(option);
   }
   els.proxyCountrySelect.value = DEFAULT_PROXY_COUNTRY;
@@ -1486,16 +1486,31 @@ function sendProxyMessage(type, payload = {}) {
   return chrome.runtime.sendMessage({ ...payload, type });
 }
 
+function formatCountryOptionLabel(code, label = '') {
+  return [countryFlag(code), label || code].filter(Boolean).join(' ');
+}
+
+function countryFlag(code) {
+  const countryCode = String(code || '').trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(countryCode)) return '';
+  return Array.from(countryCode)
+    .map(char => String.fromCodePoint(127397 + char.charCodeAt(0)))
+    .join('');
+}
+
 function getProxyCountryCode() {
   return state.proxy?.country || els.proxyCountrySelect?.value || DEFAULT_PROXY_COUNTRY;
 }
 
 function getProxyCountryLabel(code) {
-  return COUNTRIES[code]?.label || code || DEFAULT_PROXY_COUNTRY;
+  const countryCode = code || DEFAULT_PROXY_COUNTRY;
+  return formatCountryOptionLabel(countryCode, COUNTRIES[countryCode]?.label || countryCode);
 }
 
 function getProxyCountryButtonLabel(code) {
-  return code === 'US' ? 'USA' : code || DEFAULT_PROXY_COUNTRY;
+  const countryCode = code || DEFAULT_PROXY_COUNTRY;
+  const label = countryCode === 'US' ? 'USA' : countryCode;
+  return formatCountryOptionLabel(countryCode, label);
 }
 
 function getProxyButtonState(proxyState) {
