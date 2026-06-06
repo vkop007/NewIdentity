@@ -463,6 +463,7 @@ let state = {
   inboxMessages: [],
   messageDetails: {},
   proxy: null,
+  proxyAction: '',
 };
 
 const els = {
@@ -1005,6 +1006,8 @@ async function toggleProxyConnection() {
 async function connectProxy() {
   const country = getProxyCountryCode();
   setProxyStatus(`Connecting browser through ${getProxyCountryLabel(country)}...`, '');
+  state.proxyAction = 'connecting';
+  renderProxy();
   setProxyBusy(true);
 
   try {
@@ -1016,6 +1019,7 @@ async function connectProxy() {
   } catch (error) {
     setProxyStatus(error instanceof Error ? error.message : 'Unable to connect proxy.', 'error');
   } finally {
+    state.proxyAction = '';
     setProxyBusy(false);
     renderProxy();
   }
@@ -1024,6 +1028,8 @@ async function connectProxy() {
 async function connectProxyById(proxyId) {
   if (!proxyId) return;
   setProxyStatus(`Switching ${getProxyCountryLabel(getProxyCountryCode())} route...`, '');
+  state.proxyAction = 'connecting';
+  renderProxy();
   setProxyBusy(true);
 
   try {
@@ -1035,6 +1041,7 @@ async function connectProxyById(proxyId) {
   } catch (error) {
     setProxyStatus(error instanceof Error ? error.message : 'Unable to switch proxy.', 'error');
   } finally {
+    state.proxyAction = '';
     setProxyBusy(false);
     renderProxy();
   }
@@ -1042,6 +1049,8 @@ async function connectProxyById(proxyId) {
 
 async function disconnectProxy() {
   setProxyStatus('Disconnecting browser proxy...', '');
+  state.proxyAction = 'disconnecting';
+  renderProxy();
   setProxyBusy(true);
 
   try {
@@ -1052,6 +1061,7 @@ async function disconnectProxy() {
   } catch (error) {
     setProxyStatus(error instanceof Error ? error.message : 'Unable to disconnect proxy.', 'error');
   } finally {
+    state.proxyAction = '';
     setProxyBusy(false);
     renderProxy();
   }
@@ -1083,8 +1093,9 @@ function renderProxy() {
   els.proxyCurrent.textContent = currentProxy
     ? `${formatProxyLocation(currentProxy)} via ${formatProxyAddress(currentProxy)}`
     : 'No browser proxy active.';
-  els.proxyToggleBtn.textContent = proxyState.connected ? 'Disconnect' : `Connect ${countryButtonLabel}`;
-  els.proxyToggleBtn.className = `${proxyState.connected ? 'secondary-action' : 'primary-action'} proxy-toggle`;
+  const buttonState = getProxyButtonState(proxyState);
+  els.proxyToggleBtn.textContent = buttonState.label;
+  els.proxyToggleBtn.className = buttonState.className;
   els.proxyToggleBtn.disabled = !proxyState.connected && proxies.length === 0;
 
   renderProxyList(proxies, currentProxy?.id || '');
@@ -1175,6 +1186,27 @@ function getProxyCountryLabel(code) {
 
 function getProxyCountryButtonLabel(code) {
   return code === 'US' ? 'USA' : code || DEFAULT_PROXY_COUNTRY;
+}
+
+function getProxyButtonState(proxyState) {
+  if (state.proxyAction === 'connecting') {
+    return {
+      label: 'Connecting...',
+      className: 'primary-action proxy-toggle connecting',
+    };
+  }
+
+  if (state.proxyAction === 'disconnecting' || proxyState.connected) {
+    return {
+      label: 'Disconnect',
+      className: 'secondary-action proxy-toggle disconnect',
+    };
+  }
+
+  return {
+    label: 'Connect',
+    className: 'primary-action proxy-toggle',
+  };
 }
 
 function formatProxyLocation(proxy) {

@@ -799,6 +799,35 @@ button {
   width: 100%;
 }
 
+.proxy-toggle.connecting {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #16a34a, #22d3ee);
+  color: #fff;
+}
+
+.proxy-toggle.connecting::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.34), transparent);
+  content: "";
+  transform: translateX(-100%);
+  animation: proxy-connect-sweep 1.05s ease-in-out infinite;
+}
+
+.proxy-toggle.disconnect {
+  border-color: rgba(251, 113, 133, 0.44);
+  background: rgba(251, 113, 133, 0.12);
+  color: var(--danger);
+  box-shadow: none;
+}
+
+@keyframes proxy-connect-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 .proxy-candidates-heading {
   align-items: flex-end;
 }
