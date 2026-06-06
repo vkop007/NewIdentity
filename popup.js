@@ -6,6 +6,7 @@ const AUTOFILL_ORIGINS = ['http://*/*', 'https://*/*'];
 const AUTOFILL_SCRIPT_ID = 'new-identity-auto-fill';
 const DEFAULT_PROXY_COUNTRY = 'US';
 const PRIVATE_CARD_FILE = 'private-card.json';
+const INBOX_REFRESH_INTERVAL_MS = 12_000;
 
 const STORAGE_KEYS = {
   identity: 'newIdentity.current',
@@ -21,6 +22,7 @@ const DEFAULT_SETTINGS = {
   saveHistory: true,
   autoCopy: false,
   autoFill: false,
+  cardAutoFill: false,
 };
 
 const COUNTRY_OVERRIDES = {
@@ -464,8 +466,14 @@ let state = {
   inboxMessages: [],
   messageDetails: {},
   privateCard: null,
+  cardRevealed: false,
+  activeTab: 'home',
+  inboxRefreshTimer: null,
   proxy: null,
   proxyAction: '',
+  permissionStatus: {
+    siteAccess: false,
+  },
 };
 
 const els = {
@@ -474,6 +482,7 @@ const els = {
   saveHistoryToggle: document.querySelector('#saveHistoryToggle'),
   autoCopyToggle: document.querySelector('#autoCopyToggle'),
   autoFillToggle: document.querySelector('#autoFillToggle'),
+  cardAutoFillToggle: document.querySelector('#cardAutoFillToggle'),
   statusLines: document.querySelectorAll('[data-status-line]'),
   messageList: document.querySelector('#messageList'),
   historyList: document.querySelector('#historyList'),
@@ -481,6 +490,9 @@ const els = {
   inboxList: document.querySelector('#inboxList'),
   inboxCount: document.querySelector('#inboxCount'),
   mailboxState: document.querySelector('#mailboxState'),
+  copyLatestOtpBtn: document.querySelector('#copyLatestOtpBtn'),
+  cardRevealBtn: document.querySelector('#cardRevealBtn'),
+  cardSafetyStatus: document.querySelector('#cardSafetyStatus'),
   proxyRefreshBtn: document.querySelector('#proxyRefreshBtn'),
   proxyToggleBtn: document.querySelector('#proxyToggleBtn'),
   proxyCountrySelect: document.querySelector('#proxyCountrySelect'),
@@ -489,8 +501,10 @@ const els = {
   proxyBadge: document.querySelector('#proxyBadge'),
   proxySignal: document.querySelector('#proxySignal'),
   proxyCount: document.querySelector('#proxyCount'),
-  proxyActive: document.querySelector('#proxyActive'),
-  proxyChecked: document.querySelector('#proxyChecked'),
+  proxyIp: document.querySelector('#proxyIp'),
+  proxyVerifiedCountry: document.querySelector('#proxyVerifiedCountry'),
+  proxyVerifiedAt: document.querySelector('#proxyVerifiedAt'),
+  proxyAutoReconnectToggle: document.querySelector('#proxyAutoReconnectToggle'),
   proxyCurrent: document.querySelector('#proxyCurrent'),
   proxyList: document.querySelector('#proxyList'),
   proxyStatusLine: document.querySelector('#proxyStatusLine'),
@@ -498,6 +512,14 @@ const els = {
   saveWebshareTokenBtn: document.querySelector('#saveWebshareTokenBtn'),
   clearWebshareTokenBtn: document.querySelector('#clearWebshareTokenBtn'),
   proxyStableNote: document.querySelector('#proxyStableNote'),
+  proxySourceSteps: document.querySelector('#proxySourceSteps'),
+  autoFillAccessStatus: document.querySelector('#autoFillAccessStatus'),
+  proxyAuthAccessStatus: document.querySelector('#proxyAuthAccessStatus'),
+  webshareSourceStatus: document.querySelector('#webshareSourceStatus'),
+  exportJsonBtn: document.querySelector('#exportJsonBtn'),
+  exportCsvBtn: document.querySelector('#exportCsvBtn'),
+  importJsonBtn: document.querySelector('#importJsonBtn'),
+  importProfilesInput: document.querySelector('#importProfilesInput'),
 };
 
 document.addEventListener('DOMContentLoaded', init);
@@ -518,6 +540,7 @@ async function init() {
   await syncAutoFillPermissionState();
   await loadPrivateCard();
   await loadProxyState(false);
+  await refreshPermissionStatus();
 
   if (!state.identity?.mailbox?.address) {
     await generateIdentity(false);
@@ -556,14 +579,22 @@ function bindEvents() {
   document.querySelector('#fillPageBtn').addEventListener('click', fillCurrentPage);
   document.querySelector('#saveSettingsBtn').addEventListener('click', saveSettingsFromControls);
   document.querySelector('#refreshInboxBtn').addEventListener('click', () => refreshInbox(true));
+  els.copyLatestOtpBtn.addEventListener('click', copyLatestOtp);
   document.querySelector('#copyInboxBtn').addEventListener('click', copyInboxAddress);
   document.querySelector('#clearHistoryBtn').addEventListener('click', clearHistory);
+  els.cardRevealBtn.addEventListener('click', toggleCardReveal);
   els.proxyRefreshBtn.addEventListener('click', () => refreshProxyList(true));
   els.proxyToggleBtn.addEventListener('click', toggleProxyConnection);
   els.proxyCountrySelect.addEventListener('change', handleProxyCountryChange);
+  els.proxyAutoReconnectToggle.addEventListener('change', handleProxyAutoReconnectToggle);
   els.saveWebshareTokenBtn.addEventListener('click', saveWebshareToken);
   els.clearWebshareTokenBtn.addEventListener('click', clearWebshareToken);
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
+  els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
+  els.exportJsonBtn.addEventListener('click', exportProfilesJson);
+  els.exportCsvBtn.addEventListener('click', exportProfilesCsv);
+  els.importJsonBtn.addEventListener('click', () => els.importProfilesInput.click());
+  els.importProfilesInput.addEventListener('change', importProfilesJson);
 
   els.countrySelect.addEventListener('change', () => {
     state.settings.country = els.countrySelect.value;
@@ -612,6 +643,8 @@ function normalizePrivateCard(card = {}) {
 
   return {
     cardNumber,
+    cardExpiryMonth,
+    cardExpiryYear,
     cardExpiry: [cardExpiryMonth, cardExpiryYear].filter(Boolean).join('/'),
     cardCvv,
     cardLine: [cardNumber, cardExpiryMonth, cardExpiryYear, cardCvv].join('|'),
@@ -624,18 +657,25 @@ function hydrateControls() {
   els.saveHistoryToggle.checked = state.settings.saveHistory;
   els.autoCopyToggle.checked = state.settings.autoCopy;
   els.autoFillToggle.checked = state.settings.autoFill;
+  els.cardAutoFillToggle.checked = state.settings.cardAutoFill;
 }
 
 function activateTab(tab) {
+  state.activeTab = tab;
   document.querySelectorAll('.tab').forEach(button => button.classList.toggle('active', button.dataset.tab === tab));
   document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.toggle('active', panel.dataset.panel === tab));
 
   if (tab === 'messages' && state.identity?.mailbox?.address) {
     refreshInbox(false);
   }
+  updateInboxAutoRefresh();
 
   if (tab === 'proxy') {
     loadProxyState(false);
+  }
+
+  if (tab === 'settings') {
+    refreshPermissionStatus();
   }
 }
 
@@ -727,16 +767,94 @@ function renderAll() {
   renderMessages();
   renderHistory();
   renderProxy();
+  renderSettingsStatus();
 }
 
 function renderIdentity() {
-  for (const key of ['firstName', 'lastName', 'fullName', 'email', 'password', 'confirmPassword', 'phone', 'address1', 'city', 'postalCode', 'state']) {
+  for (const key of ['firstName', 'lastName', 'fullName', 'username', 'email', 'password', 'confirmPassword', 'phone', 'address1', 'address2', 'city', 'postalCode', 'state', 'dateOfBirth', 'company', 'jobTitle', 'website']) {
     document.querySelector(`#${key}`).textContent = state.identity?.[key] || '-';
   }
 
+  renderPrivateCard();
+}
+
+function renderPrivateCard() {
+  const card = state.privateCard;
+  const hasCard = Boolean(card?.cardLine);
+  const displayCard = state.cardRevealed ? card : maskPrivateCard(card);
+
   for (const key of ['cardNumber', 'cardExpiry', 'cardCvv', 'cardLine']) {
-    document.querySelector(`#${key}`).textContent = state.privateCard?.[key] || '-';
+    document.querySelector(`#${key}`).textContent = displayCard?.[key] || '-';
   }
+
+  els.cardRevealBtn.textContent = state.cardRevealed ? 'Hide' : 'Reveal';
+  els.cardRevealBtn.disabled = !hasCard;
+  renderCardSafetyStatus(card);
+}
+
+function maskPrivateCard(card) {
+  if (!card) return null;
+  const last4 = card.cardNumber ? card.cardNumber.slice(-4) : '';
+  const maskedNumber = last4 ? `**** **** **** ${last4}` : '';
+  return {
+    cardNumber: maskedNumber,
+    cardExpiry: card.cardExpiry ? '**/****' : '',
+    cardCvv: card.cardCvv ? '***' : '',
+    cardLine: [maskedNumber, card.cardExpiryMonth ? '**' : '', card.cardExpiryYear ? '****' : '', card.cardCvv ? '***' : ''].join('|'),
+  };
+}
+
+function renderCardSafetyStatus(card) {
+  if (!els.cardSafetyStatus) return;
+
+  const status = getCardExpiryStatus(card);
+  els.cardSafetyStatus.textContent = status.message;
+  els.cardSafetyStatus.className = `private-card-status ${status.type}`.trim();
+}
+
+function getCardExpiryStatus(card) {
+  if (!card?.cardLine) {
+    return {
+      type: '',
+      message: 'No private card configured.',
+    };
+  }
+
+  const month = Number(card.cardExpiryMonth);
+  const year = Number(card.cardExpiryYear);
+  if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(year)) {
+    return {
+      type: 'warning',
+      message: 'Private card loaded, but expiry is incomplete.',
+    };
+  }
+
+  const expiryDate = new Date(year, month, 0, 23, 59, 59);
+  const today = new Date();
+  const daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / 86_400_000);
+  if (daysLeft < 0) {
+    return {
+      type: 'error',
+      message: `Private card expired in ${card.cardExpiry}.`,
+    };
+  }
+
+  if (daysLeft <= 90) {
+    return {
+      type: 'warning',
+      message: `Private card expires soon: ${card.cardExpiry}.`,
+    };
+  }
+
+  return {
+    type: 'success',
+    message: `Private card loaded. Expires ${card.cardExpiry}.`,
+  };
+}
+
+function toggleCardReveal() {
+  state.cardRevealed = !state.cardRevealed;
+  renderPrivateCard();
 }
 
 function renderInbox() {
@@ -744,18 +862,21 @@ function renderInbox() {
   els.mailboxState.textContent = mailbox ? `Live ${mailbox.label || mailbox.provider} mailbox` : 'No mailbox';
   els.inboxAddress.textContent = mailbox?.address || 'Generate an identity first';
   renderInboxMessages();
+  updateInboxAutoRefresh();
 }
 
 function renderInboxMessages() {
   if (!state.identity?.mailbox?.address) {
     els.inboxCount.textContent = 'Not ready';
     els.inboxList.replaceChildren(emptyCard('No mailbox yet', 'Generate an identity to create a working temporary email address.', 'mail'));
+    updateLatestOtpButton();
     return;
   }
 
   if (!state.inboxMessages.length) {
     els.inboxCount.textContent = 'No messages';
     els.inboxList.replaceChildren(emptyCard('Inbox is empty', 'Send a verification email to this address, then tap Check mail.', 'empty'));
+    updateLatestOtpButton();
     return;
   }
 
@@ -800,6 +921,33 @@ function renderInboxMessages() {
 
     return card;
   }));
+  updateLatestOtpButton();
+}
+
+function updateLatestOtpButton() {
+  const latestOtp = findLatestInboxOtp();
+  els.copyLatestOtpBtn.disabled = !latestOtp;
+  els.copyLatestOtpBtn.textContent = latestOtp ? `Copy ${latestOtp.code}` : 'Copy OTP';
+}
+
+function updateInboxAutoRefresh() {
+  window.clearInterval(state.inboxRefreshTimer);
+  state.inboxRefreshTimer = null;
+
+  if (state.activeTab !== 'messages' || !state.identity?.mailbox?.address) return;
+
+  state.inboxRefreshTimer = window.setInterval(() => {
+    if (state.activeTab === 'messages') refreshInbox(false);
+  }, INBOX_REFRESH_INTERVAL_MS);
+}
+
+async function copyLatestOtp() {
+  const latestOtp = findLatestInboxOtp();
+  if (!latestOtp) {
+    setStatus('No OTP code found yet.', 'error');
+    return;
+  }
+  await copyOtpCode(latestOtp.code, latestOtp.messageId);
 }
 
 function createMessageAction(label, onClick, tone = '') {
@@ -973,7 +1121,7 @@ function renderHistory() {
     const button = document.createElement('button');
     button.className = 'history-card';
     button.type = 'button';
-    button.innerHTML = `<strong>${escapeHtml(identity.fullName)}</strong><small>${escapeHtml(identity.email)} · ${escapeHtml(identity.country)}</small>`;
+    button.innerHTML = `<strong>${escapeHtml(identity.fullName)}</strong><small>${escapeHtml(identity.email)} - ${escapeHtml(identity.country)}</small>`;
     button.addEventListener('click', async () => {
       state.identity = identity;
       state.inboxMessages = [];
@@ -994,6 +1142,7 @@ async function loadProxyState(showStatus) {
     if (!response?.ok) throw new Error(response?.error || 'Unable to load proxy state.');
     state.proxy = response.state;
     renderProxy();
+    renderSettingsStatus();
     if (showStatus) setProxyStatus('Proxy state loaded.', 'success');
   } catch (error) {
     renderProxy();
@@ -1040,6 +1189,24 @@ async function handleProxyCountryChange() {
   }
 }
 
+async function handleProxyAutoReconnectToggle() {
+  const enabled = els.proxyAutoReconnectToggle.checked;
+  setProxyBusy(true);
+
+  try {
+    const response = await sendProxyMessage('proxy:setAutoReconnect', { enabled });
+    if (!response?.ok) throw new Error(response?.error || 'Unable to update auto reconnect.');
+    state.proxy = response.state;
+    setProxyStatus(enabled ? 'Auto reconnect is on.' : 'Auto reconnect is off.', 'success');
+  } catch (error) {
+    els.proxyAutoReconnectToggle.checked = Boolean(state.proxy?.autoReconnect ?? true);
+    setProxyStatus(error instanceof Error ? error.message : 'Unable to update auto reconnect.', 'error');
+  } finally {
+    setProxyBusy(false);
+    renderProxy();
+  }
+}
+
 async function saveWebshareToken() {
   const token = els.webshareTokenInput.value.trim();
   if (!token) {
@@ -1057,6 +1224,7 @@ async function saveWebshareToken() {
     els.webshareTokenInput.value = '';
     const count = state.proxy?.webshareRouteCount || 0;
     setProxyStatus(count ? `Webshare free source ready with ${count} route${count === 1 ? '' : 's'}.` : 'Webshare token saved. No matching route found yet.', count ? 'success' : 'error');
+    await refreshPermissionStatus();
   } catch (error) {
     setProxyStatus(error instanceof Error ? error.message : 'Unable to save Webshare source.', 'error');
   } finally {
@@ -1078,6 +1246,7 @@ async function clearWebshareToken() {
       await removeAutoFillPermission();
     }
     setProxyStatus('Webshare free source cleared.', 'success');
+    await refreshPermissionStatus();
   } catch (error) {
     setProxyStatus(error instanceof Error ? error.message : 'Unable to clear Webshare source.', 'error');
   } finally {
@@ -1108,6 +1277,7 @@ async function connectProxy() {
       setProxyStatus('Website access is needed for authenticated proxy login.', 'error');
       return;
     }
+    await refreshPermissionStatus();
 
     const response = await sendProxyMessage('proxy:connectBest');
     if (!response?.ok) throw new Error(response?.error || 'Unable to connect proxy.');
@@ -1136,6 +1306,7 @@ async function connectProxyById(proxyId) {
       setProxyStatus('Website access is needed for authenticated proxy login.', 'error');
       return;
     }
+    await refreshPermissionStatus();
 
     const response = await sendProxyMessage('proxy:connectProxy', { proxyId });
     if (!response?.ok) throw new Error(response?.error || 'Unable to switch proxy.');
@@ -1176,6 +1347,7 @@ function renderProxy() {
 
   const proxyState = state.proxy || {
     connected: false,
+    autoReconnect: true,
     proxies: [],
     currentProxy: null,
     lastRefreshAt: '',
@@ -1192,8 +1364,10 @@ function renderProxy() {
   els.proxyBadge.textContent = proxyState.connected ? 'Connected' : 'Off';
   els.proxySignal.classList.toggle('connected', Boolean(proxyState.connected));
   els.proxyCount.textContent = String(proxies.length);
-  els.proxyActive.textContent = currentProxy ? currentProxy.protocol.toUpperCase() : 'None';
-  els.proxyChecked.textContent = formatProxyTime(proxyState.lastRefreshAt);
+  els.proxyIp.textContent = currentProxy?.verifiedIp || 'None';
+  els.proxyVerifiedCountry.textContent = currentProxy?.verifiedCountry || currentProxy?.country || 'None';
+  els.proxyVerifiedAt.textContent = formatProxyTime(currentProxy?.verifiedAt || proxyState.lastRefreshAt);
+  els.proxyAutoReconnectToggle.checked = proxyState.autoReconnect !== false;
   els.proxyCurrent.textContent = currentProxy
     ? `${formatProxyLocation(currentProxy)} via ${formatProxyAddress(currentProxy)}`
     : 'No browser proxy active.';
@@ -1208,6 +1382,7 @@ function renderProxy() {
   if (els.clearWebshareTokenBtn) {
     els.clearWebshareTokenBtn.disabled = !proxyState.webshareConfigured;
   }
+  renderProxySourceSteps(proxyState);
   const buttonState = getProxyButtonState(proxyState);
   els.proxyToggleBtn.textContent = buttonState.label;
   els.proxyToggleBtn.className = buttonState.className;
@@ -1230,6 +1405,17 @@ function renderProxyList(proxies, currentProxyId) {
   }
 
   els.proxyList.replaceChildren(...visibleProxies.map(proxy => createProxyRouteButton(proxy, currentProxyId)));
+}
+
+function renderProxySourceSteps(proxyState) {
+  if (!els.proxySourceSteps) return;
+  const steps = Array.from(els.proxySourceSteps.querySelectorAll('span'));
+  const hasToken = Boolean(proxyState.webshareConfigured);
+  const hasRoutes = Boolean(proxyState.webshareRouteCount || (proxyState.proxies || []).some(proxy => proxy.provider === 'Webshare Free'));
+  const connected = Boolean(proxyState.connected);
+  [hasToken, hasRoutes, connected].forEach((isActive, index) => {
+    steps[index]?.classList.toggle('active', isActive);
+  });
 }
 
 function createProxyRouteButton(proxy, currentProxyId) {
@@ -1281,6 +1467,7 @@ function setProxyBusy(isBusy) {
     els.proxyRefreshBtn,
     els.proxyToggleBtn,
     els.proxyCountrySelect,
+    els.proxyAutoReconnectToggle,
     els.webshareTokenInput,
     els.saveWebshareTokenBtn,
     els.clearWebshareTokenBtn,
@@ -1375,9 +1562,11 @@ async function saveSettingsFromControls() {
     saveHistory: els.saveHistoryToggle.checked,
     autoCopy: els.autoCopyToggle.checked,
     autoFill: state.settings.autoFill,
+    cardAutoFill: els.cardAutoFillToggle.checked,
   };
   hydrateControls();
   await persistSettings();
+  renderSettingsStatus();
   setStatus('Settings saved.', 'success');
 }
 
@@ -1404,6 +1593,7 @@ async function handleAutoFillToggle() {
       await persistSettings();
       await registerAutoFillScript();
       await runAutoFillOnActiveTab();
+      await refreshPermissionStatus();
       setStatus('Auto-fill is on. New forms will fill automatically.', 'success');
       return;
     }
@@ -1411,14 +1601,22 @@ async function handleAutoFillToggle() {
     state.settings.autoFill = false;
     await persistSettings();
     await unregisterAutoFillScript();
-    await removeAutoFillPermission();
-    setStatus('Auto-fill is off and website access was removed.', 'success');
+    const removedPermission = await removeAutoFillPermission();
+    await refreshPermissionStatus();
+    setStatus(removedPermission ? 'Auto-fill is off and website access was removed.' : 'Auto-fill is off. Website access stayed on for proxy auth.', 'success');
   } catch (error) {
     state.settings.autoFill = false;
     hydrateControls();
     await persistSettings();
     setStatus(error instanceof Error ? error.message : 'Unable to update auto-fill.', 'error');
   }
+}
+
+async function handleCardAutoFillToggle() {
+  state.settings.cardAutoFill = els.cardAutoFillToggle.checked;
+  await persistSettings();
+  renderSettingsStatus();
+  setStatus(state.settings.cardAutoFill ? 'Card autofill is on for manual Fill form.' : 'Card autofill is off.', 'success');
 }
 
 async function syncAutoFillPermissionState() {
@@ -1441,6 +1639,24 @@ async function syncAutoFillPermissionState() {
     await persistSettings();
     hydrateControls();
   }
+}
+
+async function refreshPermissionStatus() {
+  state.permissionStatus.siteAccess = await hasAutoFillPermission();
+  renderSettingsStatus();
+}
+
+function renderSettingsStatus() {
+  const siteAccess = Boolean(state.permissionStatus.siteAccess);
+  setStatusPill(els.autoFillAccessStatus, siteAccess ? 'On' : 'Off', siteAccess);
+  setStatusPill(els.proxyAuthAccessStatus, siteAccess ? 'On' : 'Off', siteAccess);
+  setStatusPill(els.webshareSourceStatus, state.proxy?.webshareConfigured ? 'Configured' : 'Not configured', Boolean(state.proxy?.webshareConfigured));
+}
+
+function setStatusPill(element, text, isOn) {
+  if (!element) return;
+  element.textContent = text;
+  element.className = isOn ? 'on' : 'off';
 }
 
 async function hasAutoFillPermission() {
@@ -1539,6 +1755,115 @@ async function copyFullIdentity() {
   await copyText(text, 'Full identity copied.');
 }
 
+function exportProfilesJson() {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    current: sanitizeExportIdentity(state.identity),
+    history: state.history.map(sanitizeExportIdentity).filter(Boolean),
+  };
+  downloadText(`new-identity-profiles-${dateStamp()}.json`, JSON.stringify(payload, null, 2), 'application/json');
+  setStatus('Profiles exported as JSON.', 'success');
+}
+
+function exportProfilesCsv() {
+  const profiles = exportableProfiles();
+  if (!profiles.length) {
+    setStatus('No profiles to export.', 'error');
+    return;
+  }
+
+  const headers = ['fullName', 'username', 'email', 'phone', 'address1', 'address2', 'city', 'state', 'postalCode', 'country', 'dateOfBirth', 'company', 'jobTitle', 'website'];
+  const lines = [
+    headers.join(','),
+    ...profiles.map(profile => headers.map(header => csvCell(profile[header])).join(',')),
+  ];
+  downloadText(`new-identity-profiles-${dateStamp()}.csv`, lines.join('\n'), 'text/csv');
+  setStatus('Profiles exported as CSV.', 'success');
+}
+
+async function importProfilesJson(event) {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+
+  try {
+    const payload = JSON.parse(await file.text());
+    const importedProfiles = normalizeImportedProfiles(payload);
+    if (!importedProfiles.length) throw new Error('No profiles found in this JSON file.');
+
+    state.identity = importedProfiles[0];
+    state.history = uniqueProfiles([...importedProfiles, ...state.history]).slice(0, 12);
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.identity]: state.identity,
+      [STORAGE_KEYS.history]: state.history,
+    });
+    renderAll();
+    setStatus(`Imported ${importedProfiles.length} profile${importedProfiles.length === 1 ? '' : 's'}.`, 'success');
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : 'Unable to import profiles.', 'error');
+  }
+}
+
+function exportableProfiles() {
+  return uniqueProfiles([state.identity, ...state.history].filter(Boolean)).map(sanitizeExportIdentity).filter(Boolean);
+}
+
+function sanitizeExportIdentity(identity) {
+  if (!identity) return null;
+  const {
+    cardNumber,
+    cardName,
+    cardExpiry,
+    cardExpiryMonth,
+    cardExpiryYear,
+    cardCvv,
+    cardLine,
+    cardAutofillEnabled,
+    ...safeIdentity
+  } = identity;
+  return safeIdentity;
+}
+
+function normalizeImportedProfiles(payload) {
+  const rawProfiles = [
+    payload?.current,
+    ...(Array.isArray(payload?.history) ? payload.history : []),
+    ...(Array.isArray(payload?.profiles) ? payload.profiles : []),
+    ...(Array.isArray(payload) ? payload : []),
+  ].filter(Boolean);
+
+  return uniqueProfiles(rawProfiles.map(sanitizeExportIdentity).filter(profile => profile?.email || profile?.fullName));
+}
+
+function uniqueProfiles(profiles) {
+  const seen = new Set();
+  return profiles.filter(profile => {
+    const key = profile?.email || `${profile?.fullName || ''}:${profile?.createdAt || ''}`;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function downloadText(filename, text, type) {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function csvCell(value) {
+  const text = String(value ?? '');
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function dateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 async function copyText(text, message) {
   try {
     await navigator.clipboard.writeText(text);
@@ -1563,7 +1888,7 @@ async function fillCurrentPage() {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
       func: identity => window.__newIdentityFillFields?.(identity, { force: true }) || 0,
-      args: [state.identity],
+      args: [buildFillIdentity()],
     });
     const filled = results.reduce((total, item) => total + Number(item.result || 0), 0);
 
@@ -1571,6 +1896,22 @@ async function fillCurrentPage() {
   } catch (error) {
     setStatus(error instanceof Error ? error.message : 'Unable to fill this page.', 'error');
   }
+}
+
+function buildFillIdentity() {
+  const identity = { ...state.identity };
+  if (state.settings.cardAutoFill && state.privateCard) {
+    Object.assign(identity, {
+      cardAutofillEnabled: true,
+      cardName: state.identity.fullName,
+      cardNumber: state.privateCard.cardNumber,
+      cardExpiry: state.privateCard.cardExpiry,
+      cardExpiryMonth: state.privateCard.cardExpiryMonth,
+      cardExpiryYear: state.privateCard.cardExpiryYear,
+      cardCvv: state.privateCard.cardCvv,
+    });
+  }
+  return identity;
 }
 
 async function fillOtpOnActiveTab(code, showStatus = true) {

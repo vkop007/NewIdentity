@@ -50,6 +50,10 @@
             <span>Full name</span>
             <strong id="fullName">-</strong>
           </button>
+          <button class="identity-field wide" data-copy="username" type="button">
+            <span>Username</span>
+            <strong id="username">-</strong>
+          </button>
           <button class="identity-field wide highlight" data-copy="email" type="button">
             <span>Email</span>
             <strong id="email">-</strong>
@@ -74,6 +78,10 @@
             <span>Address</span>
             <strong id="address1">-</strong>
           </button>
+          <button class="identity-field wide" data-copy="address2" type="button">
+            <span>Address 2</span>
+            <strong id="address2">-</strong>
+          </button>
 
           <div class="field-grid">
             <button class="identity-field" data-copy="city" type="button">
@@ -90,10 +98,30 @@
             <span>State</span>
             <strong id="state">-</strong>
           </button>
+          <div class="field-grid">
+            <button class="identity-field" data-copy="dateOfBirth" type="button">
+              <span>Date of birth</span>
+              <strong id="dateOfBirth">-</strong>
+            </button>
+            <button class="identity-field" data-copy="company" type="button">
+              <span>Company</span>
+              <strong id="company">-</strong>
+            </button>
+          </div>
+          <button class="identity-field wide" data-copy="jobTitle" type="button">
+            <span>Job title</span>
+            <strong id="jobTitle">-</strong>
+          </button>
+          <button class="identity-field wide" data-copy="website" type="button">
+            <span>Website</span>
+            <strong id="website">-</strong>
+          </button>
 
           <div class="private-card-heading">
             <span>Card details</span>
+            <button class="copy-chip private-card-toggle" id="cardRevealBtn" type="button">Reveal</button>
           </div>
+          <p class="private-card-status" id="cardSafetyStatus">No private card configured.</p>
           <button class="identity-field wide private-card-field" data-copy="cardNumber" type="button">
             <span>Card number</span>
             <strong id="cardNumber">-</strong>
@@ -128,7 +156,10 @@
             <span>Inbox</span>
             <h2>Mail center</h2>
           </div>
-          <button class="ghost-button action-pill" id="refreshInboxBtn" type="button">Check mail</button>
+          <div class="heading-actions">
+            <button class="ghost-button action-pill" id="copyLatestOtpBtn" type="button">Copy OTP</button>
+            <button class="ghost-button action-pill" id="refreshInboxBtn" type="button">Check mail</button>
+          </div>
         </div>
 
         <section class="inbox-card">
@@ -192,18 +223,30 @@
               <strong id="proxyCount">0</strong>
             </div>
             <div>
-              <span>Active route</span>
-              <strong id="proxyActive">None</strong>
+              <span>Current IP</span>
+              <strong id="proxyIp">None</strong>
             </div>
             <div>
-              <span>Checked</span>
-              <strong id="proxyChecked">Never</strong>
+              <span>Country</span>
+              <strong id="proxyVerifiedCountry">None</strong>
+            </div>
+            <div>
+              <span>Verified</span>
+              <strong id="proxyVerifiedAt">Never</strong>
             </div>
           </div>
 
           <div class="proxy-actions">
             <button class="primary-action proxy-toggle" id="proxyToggleBtn" type="button">Connect</button>
           </div>
+
+          <label class="proxy-reconnect-toggle">
+            <span>
+              <strong>Auto reconnect</strong>
+              <small>Rotate to a fresh route if the active tunnel fails.</small>
+            </span>
+            <input id="proxyAutoReconnectToggle" type="checkbox" />
+          </label>
 
           <p class="proxy-current" id="proxyCurrent">No browser proxy active.</p>
         </section>
@@ -220,6 +263,11 @@
             <span>API token</span>
             <input id="webshareTokenInput" type="password" autocomplete="off" placeholder="Paste token" />
           </label>
+          <div class="proxy-source-steps" id="proxySourceSteps" aria-label="Webshare setup steps">
+            <span>Paste token</span>
+            <span>Save source</span>
+            <span>Connect</span>
+          </div>
           <div class="proxy-source-actions">
             <button class="secondary-action" id="saveWebshareTokenBtn" type="button">Save source</button>
             <button class="ghost-button danger" id="clearWebshareTokenBtn" type="button">Clear</button>
@@ -275,6 +323,36 @@
           </span>
           <input id="autoFillToggle" type="checkbox" />
         </label>
+
+        <label class="switch-card">
+          <span>
+            <strong>Card autofill</strong>
+            <small>Use the ignored local card only when you tap Fill form.</small>
+          </span>
+          <input id="cardAutoFillToggle" type="checkbox" />
+        </label>
+
+        <div class="settings-status-grid">
+          <div>
+            <span>Autofill access</span>
+            <strong id="autoFillAccessStatus">Checking</strong>
+          </div>
+          <div>
+            <span>Proxy auth access</span>
+            <strong id="proxyAuthAccessStatus">Checking</strong>
+          </div>
+          <div>
+            <span>Webshare source</span>
+            <strong id="webshareSourceStatus">Checking</strong>
+          </div>
+        </div>
+
+        <div class="settings-action-grid">
+          <button class="secondary-action" id="exportJsonBtn" type="button">Export JSON</button>
+          <button class="secondary-action" id="exportCsvBtn" type="button">Export CSV</button>
+          <button class="secondary-action" id="importJsonBtn" type="button">Import JSON</button>
+          <input id="importProfilesInput" type="file" accept="application/json,.json" hidden />
+        </div>
 
         <button class="primary-action full" id="saveSettingsBtn" type="button">Save settings</button>
         <p class="status-line" data-status-line role="status" aria-live="polite">Identity data is local. Inbox refresh calls Catchmail or Mail.tm.</p>

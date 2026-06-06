@@ -43,6 +43,13 @@ button {
   cursor: pointer;
 }
 
+button:disabled,
+input:disabled,
+select:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .popup-shell {
   width: 390px;
   height: 600px;
@@ -265,6 +272,8 @@ button {
 .private-card-heading {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   min-height: 20px;
   margin: 2px 1px -2px;
 }
@@ -280,6 +289,29 @@ button {
 .private-card-field {
   border-color: rgba(34, 211, 238, 0.24);
   background: rgba(34, 211, 238, 0.07);
+}
+
+.private-card-toggle {
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.private-card-status {
+  min-height: 18px;
+  margin: 0 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.private-card-status.success {
+  color: var(--success);
+}
+
+.private-card-status.warning,
+.private-card-status.error {
+  color: var(--danger);
 }
 
 .action-row {
@@ -375,6 +407,16 @@ button {
 
 .section-heading .ghost-button {
   flex: 0 0 auto;
+}
+
+.heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 7px;
+}
+
+.heading-actions .ghost-button {
+  padding: 0 10px;
 }
 
 .message-list,
@@ -775,7 +817,7 @@ button {
 
 .proxy-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -879,6 +921,64 @@ button {
   overflow-wrap: anywhere;
 }
 
+.proxy-reconnect-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 13px;
+  background: rgba(10, 16, 32, 0.72);
+}
+
+.proxy-reconnect-toggle span {
+  min-width: 0;
+}
+
+.proxy-reconnect-toggle strong {
+  display: block;
+  font-size: 12px;
+}
+
+.proxy-reconnect-toggle small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.proxy-reconnect-toggle input[type="checkbox"] {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  margin: 0;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  border-radius: 999px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(10, 16, 32, 0.92);
+  cursor: pointer;
+}
+
+.proxy-reconnect-toggle input[type="checkbox"]::after {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--muted);
+  content: "";
+  transition: transform 140ms ease, background 140ms ease;
+}
+
+.proxy-reconnect-toggle input[type="checkbox"]:checked::after {
+  transform: translateX(18px);
+  background: var(--success);
+}
+
 .proxy-stable-card {
   display: grid;
   gap: 10px;
@@ -943,6 +1043,32 @@ button {
 .proxy-token-field input:focus {
   border-color: rgba(59, 130, 246, 0.72);
   box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.16);
+}
+
+.proxy-source-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.proxy-source-steps span {
+  display: grid;
+  min-height: 26px;
+  place-items: center;
+  border: 1px solid rgba(59, 130, 246, 0.18);
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.08);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.proxy-source-steps span.active {
+  border-color: rgba(34, 211, 238, 0.36);
+  background: rgba(34, 211, 238, 0.1);
+  color: var(--success);
 }
 
 .proxy-source-actions {
@@ -1100,6 +1226,64 @@ button {
   outline-offset: 3px;
 }
 
+.settings-status-grid,
+.settings-action-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-status-grid {
+  grid-template-columns: 1fr;
+}
+
+.settings-status-grid div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 13px;
+  background: rgba(7, 18, 37, 0.72);
+}
+
+.settings-status-grid span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.settings-status-grid strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.settings-status-grid strong.on {
+  color: var(--success);
+}
+
+.settings-status-grid strong.off {
+  color: var(--danger);
+}
+
+.settings-action-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-action-grid .secondary-action {
+  min-height: 40px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
@@ -1126,6 +1310,7 @@ button {
   .switch-card,
   .provider-card,
   .proxy-card,
+  .proxy-stable-card,
   .proxy-route {
     background: rgba(7, 18, 37, 0.82);
   }
