@@ -291,6 +291,12 @@ select:disabled {
   background: rgba(34, 211, 238, 0.07);
 }
 
+.private-card-field.is-blurred strong {
+  filter: blur(6px);
+  opacity: 0.72;
+  user-select: none;
+}
+
 .private-card-toggle {
   min-height: 28px;
   padding: 0 10px;
