@@ -783,6 +783,10 @@ function renderPrivateCard() {
   const hasCard = Boolean(card?.cardLine);
   const displayCard = state.cardRevealed ? card : maskPrivateCard(card);
 
+  document.querySelectorAll('.private-card-field').forEach(field => {
+    field.classList.toggle('is-blurred', hasCard && !state.cardRevealed);
+  });
+
   for (const key of ['cardNumber', 'cardExpiry', 'cardCvv', 'cardLine']) {
     document.querySelector(`#${key}`).textContent = displayCard?.[key] || '-';
   }
