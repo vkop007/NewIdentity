@@ -4,6 +4,7 @@ const CATCHMAIL_BASE = 'https://api.catchmail.io';
 const CATCHMAIL_DOMAIN = 'catchmail.io';
 const AUTOFILL_ORIGINS = ['http://*/*', 'https://*/*'];
 const AUTOFILL_SCRIPT_ID = 'new-identity-auto-fill';
+const SPOOF_SCRIPT_ID = 'new-identity-spoof';
 const DEFAULT_PROXY_COUNTRY = 'US';
 const PRIVATE_CARD_FILE = 'private-card.json';
 const INBOX_REFRESH_INTERVAL_MS = 12_000;
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS = {
   autoCopy: false,
   autoFill: false,
   cardAutoFill: false,
+  antiFingerprint: true,
 };
 
 const COUNTRY_OVERRIDES = {
@@ -360,6 +362,35 @@ const COUNTRY_DEFINITIONS = [
   ["ZW","Zimbabwe","+263","Africa","Eastern Africa","Harare"],
 ];
 
+const REGION_GEODATA = {
+  Africa: { timezone: 'Africa/Johannesburg', locale: 'en-ZA', latitude: -26.2041, longitude: 28.0473 },
+  Americas: { timezone: 'America/New_York', locale: 'en-US', latitude: 40.7128, longitude: -74.0060 },
+  Asia: { timezone: 'Asia/Singapore', locale: 'en-SG', latitude: 1.3521, longitude: 103.8198 },
+  Europe: { timezone: 'Europe/London', locale: 'en-GB', latitude: 51.5074, longitude: -0.1278 },
+  Oceania: { timezone: 'Australia/Sydney', locale: 'en-AU', latitude: -33.8688, longitude: 151.2093 },
+  Antarctic: { timezone: 'Antarctica/McMurdo', locale: 'en-US', latitude: -77.8460, longitude: 166.6660 },
+  World: { timezone: 'UTC', locale: 'en-US', latitude: 0, longitude: 0 },
+};
+
+const COUNTRY_GEODATA_OVERRIDES = {
+  US: { timezone: 'America/New_York', locale: 'en-US', latitude: 40.7128, longitude: -74.0060 },
+  IN: { timezone: 'Asia/Kolkata', locale: 'en-IN', latitude: 19.0760, longitude: 72.8777 },
+  GB: { timezone: 'Europe/London', locale: 'en-GB', latitude: 51.5074, longitude: -0.1278 },
+  CA: { timezone: 'America/Toronto', locale: 'en-CA', latitude: 43.6532, longitude: -79.3832 },
+  AU: { timezone: 'Australia/Sydney', locale: 'en-AU', latitude: -33.8688, longitude: 151.2093 },
+  DE: { timezone: 'Europe/Berlin', locale: 'de-DE', latitude: 52.5200, longitude: 13.4050 },
+  FR: { timezone: 'Europe/Paris', locale: 'fr-FR', latitude: 48.8566, longitude: 2.3522 },
+  JP: { timezone: 'Asia/Tokyo', locale: 'ja-JP', latitude: 35.6762, longitude: 139.6503 },
+  CN: { timezone: 'Asia/Shanghai', locale: 'zh-CN', latitude: 31.2304, longitude: 121.4737 },
+  BR: { timezone: 'America/Sao_Paulo', locale: 'pt-BR', latitude: -23.5505, longitude: -46.6333 },
+  ZA: { timezone: 'Africa/Johannesburg', locale: 'en-ZA', latitude: -26.2041, longitude: 28.0473 },
+  RU: { timezone: 'Europe/Moscow', locale: 'ru-RU', latitude: 55.7558, longitude: 37.6173 },
+  MX: { timezone: 'America/Mexico_City', locale: 'es-MX', latitude: 19.4326, longitude: -99.1332 },
+  NZ: { timezone: 'Pacific/Auckland', locale: 'en-NZ', latitude: -36.8485, longitude: 174.7633 },
+  SG: { timezone: 'Asia/Singapore', locale: 'en-SG', latitude: 1.3521, longitude: 103.8198 },
+  AE: { timezone: 'Asia/Dubai', locale: 'en-AE', latitude: 25.2048, longitude: 55.2708 },
+};
+
 const COUNTRIES = buildCountries();
 
 function buildCountries() {
@@ -384,6 +415,13 @@ function createCountryConfig([code, label, phoneCode, region, subregion, capital
     ...template.states,
   ]).slice(0, 8);
 
+  const baseGeo = REGION_GEODATA[region] || REGION_GEODATA.World;
+  const geoOverride = COUNTRY_GEODATA_OVERRIDES[code] || {};
+  const timezone = geoOverride.timezone || baseGeo.timezone;
+  const locale = geoOverride.locale || baseGeo.locale;
+  const latitude = geoOverride.latitude || baseGeo.latitude;
+  const longitude = geoOverride.longitude || baseGeo.longitude;
+
   return {
     label,
     states,
@@ -391,6 +429,10 @@ function createCountryConfig([code, label, phoneCode, region, subregion, capital
     streets: template.streets,
     postal: () => createPostalCode(region, code),
     phone: () => createPhoneNumber(phoneCode, region),
+    timezone,
+    locale,
+    latitude,
+    longitude,
   };
 }
 
@@ -483,6 +525,7 @@ const els = {
   autoCopyToggle: document.querySelector('#autoCopyToggle'),
   autoFillToggle: document.querySelector('#autoFillToggle'),
   cardAutoFillToggle: document.querySelector('#cardAutoFillToggle'),
+  antiFingerprintToggle: document.querySelector('#antiFingerprintToggle'),
   statusLines: document.querySelectorAll('[data-status-line]'),
   messageList: document.querySelector('#messageList'),
   historyList: document.querySelector('#historyList'),
@@ -591,6 +634,7 @@ function bindEvents() {
   els.clearWebshareTokenBtn.addEventListener('click', clearWebshareToken);
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
   els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
+  els.antiFingerprintToggle.addEventListener('change', handleAntiFingerprintToggle);
   els.exportJsonBtn.addEventListener('click', exportProfilesJson);
   els.exportCsvBtn.addEventListener('click', exportProfilesCsv);
   els.importJsonBtn.addEventListener('click', () => els.importProfilesInput.click());
@@ -658,6 +702,7 @@ function hydrateControls() {
   els.autoCopyToggle.checked = state.settings.autoCopy;
   els.autoFillToggle.checked = state.settings.autoFill;
   els.cardAutoFillToggle.checked = state.settings.cardAutoFill;
+  els.antiFingerprintToggle.checked = state.settings.antiFingerprint;
 }
 
 function activateTab(tab) {
@@ -1582,6 +1627,7 @@ async function saveSettingsFromControls() {
     autoCopy: els.autoCopyToggle.checked,
     autoFill: state.settings.autoFill,
     cardAutoFill: els.cardAutoFillToggle.checked,
+    antiFingerprint: els.antiFingerprintToggle.checked,
   };
   hydrateControls();
   await persistSettings();
@@ -1636,6 +1682,15 @@ async function handleCardAutoFillToggle() {
   await persistSettings();
   renderSettingsStatus();
   setStatus(state.settings.cardAutoFill ? 'Card autofill is on for manual Fill form.' : 'Card autofill is off.', 'success');
+}
+
+async function handleAntiFingerprintToggle() {
+  state.settings.antiFingerprint = els.antiFingerprintToggle.checked;
+  await persistSettings();
+  if (state.settings.autoFill) {
+    await syncAutoFillPermissionState();
+  }
+  setStatus(state.settings.antiFingerprint ? 'Anti-fingerprinting is on.' : 'Anti-fingerprinting is off.', 'success');
 }
 
 async function syncAutoFillPermissionState() {
@@ -1701,19 +1756,29 @@ async function removeAutoFillPermission() {
 
 async function registerAutoFillScript() {
   await unregisterAutoFillScript();
-  await chrome.scripting.registerContentScripts([{
-    id: AUTOFILL_SCRIPT_ID,
-    matches: AUTOFILL_ORIGINS,
-    js: ['content-autofill.js'],
-    runAt: 'document_idle',
-    allFrames: true,
-    persistAcrossSessions: true,
-  }]);
+  await chrome.scripting.registerContentScripts([
+    {
+      id: AUTOFILL_SCRIPT_ID,
+      matches: AUTOFILL_ORIGINS,
+      js: ['content-autofill.js'],
+      runAt: 'document_idle',
+      allFrames: true,
+      persistAcrossSessions: true,
+    },
+    {
+      id: SPOOF_SCRIPT_ID,
+      matches: AUTOFILL_ORIGINS,
+      js: ['content-spoof.js'],
+      runAt: 'document_start',
+      allFrames: true,
+      persistAcrossSessions: true,
+    }
+  ]);
 }
 
 async function unregisterAutoFillScript() {
   try {
-    await chrome.scripting.unregisterContentScripts({ ids: [AUTOFILL_SCRIPT_ID] });
+    await chrome.scripting.unregisterContentScripts({ ids: [AUTOFILL_SCRIPT_ID, SPOOF_SCRIPT_ID] });
   } catch {
     // Chrome throws if the script was not registered yet.
   }
@@ -1728,6 +1793,12 @@ async function runAutoFillOnActiveTab() {
       target: { tabId: tab.id, allFrames: true },
       files: ['content-autofill.js'],
     });
+    if (state.settings.antiFingerprint) {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        files: ['content-spoof.js'],
+      });
+    }
   } catch {
     // Some active pages block scripting. Future normal pages still auto-fill.
   }
@@ -2188,6 +2259,7 @@ function createIdentityProfile(identity) {
   const jobTitle = identity.jobTitle || pick(JOB_TITLES);
   const username = identity.username || createUsername(identity.firstName, identity.lastName);
   const countryCode = identity.countryCode || '';
+  const countryConfig = COUNTRIES[countryCode] || {};
 
   return {
     middleName,
@@ -2213,6 +2285,10 @@ function createIdentityProfile(identity) {
     jobTitle,
     occupation: jobTitle,
     website: `https://${slug(company)}-${countryCode.toLowerCase() || 'global'}.example`,
+    timezone: countryConfig.timezone || 'UTC',
+    locale: countryConfig.locale || 'en-US',
+    latitude: countryConfig.latitude || 0,
+    longitude: countryConfig.longitude || 0,
   };
 }
 

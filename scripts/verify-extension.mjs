@@ -10,6 +10,7 @@ const requiredFiles = [
   'popup.css',
   'popup.js',
   'content-autofill.js',
+  'content-spoof.js',
 ];
 
 function readText(file) {
@@ -109,8 +110,10 @@ checkPopupHtml();
 checkJavaScript('background.js');
 checkJavaScript('popup.js');
 checkJavaScript('content-autofill.js');
+checkJavaScript('content-spoof.js');
 checkSecurityText('background.js');
 checkSecurityText('popup.js');
 checkSecurityText('content-autofill.js');
+checkSecurityText('content-spoof.js');
 
 console.log('New Identity extension checks passed.');
