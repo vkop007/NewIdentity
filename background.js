@@ -4,7 +4,7 @@ const PROXIFLY_API_BASE_URL = 'https://api.proxifly.dev/proxy?protocol=http&http
 const PROXIFLY_COUNTRY_BASE_URL = 'https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/countries';
 const PROXYSCRAPE_BASE_URL = 'https://api.proxyscrape.com/v4/free-proxy-list/get?request=displayproxies&proxy_format=protocolipport&format=text&protocol=http&ssl=yes&anonymity=elite,anonymous&timeout=5000&limit=2000';
 const PROXY_VERIFY_URLS = [
-  'https://api.country.is/',
+  'https://api.country.is/?fields=location',
   'https://ipwho.is/',
 ];
 const PROXY_STATE_KEY = 'newIdentity.proxy';
@@ -56,10 +56,12 @@ if (chrome.webRequest?.onAuthRequired) {
 
 chrome.runtime.onInstalled.addListener(() => {
   setupProxyRefresh();
+  updateActiveSpoof().catch(() => {});
 });
 
 chrome.runtime.onStartup.addListener(() => {
   setupProxyRefresh();
+  updateActiveSpoof().catch(() => {});
 });
 
 chrome.alarms.onAlarm.addListener(alarm => {
@@ -78,10 +80,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return;
+  if (
+    changes['newIdentity.current'] ||
+    changes['newIdentity.proxy'] ||
+    changes['newIdentity.settings']
+  ) {
+    updateActiveSpoof().catch(() => {});
+  }
+});
+
 setupProxyRefresh();
 
 async function setupProxyRefresh() {
   chrome.alarms.create(PROXY_REFRESH_ALARM, { periodInMinutes: REFRESH_PERIOD_MINUTES });
+  updateActiveSpoof().catch(() => {});
 
   const state = await getProxyState();
   if (state.enabled && state.currentProxy) {
@@ -815,12 +829,19 @@ async function verifyProxyTunnel(targetCountry) {
         throw new Error(`Verified route is ${country}, not ${targetCountry}.`);
       }
 
+      const timezone = data.timezone?.id || data.location?.time_zone || '';
+      const latitude = Number(data.latitude ?? data.location?.latitude ?? 0);
+      const longitude = Number(data.longitude ?? data.location?.longitude ?? 0);
+
       return {
         verifiedAt: new Date().toISOString(),
         verifiedCountry: country,
         verifiedIp: String(data.ip || data.ipAddress || ''),
         verifiedCity: String(data.city || ''),
         verifiedRegion: String(data.region || data.regionName || ''),
+        verifiedTimezone: timezone,
+        verifiedLatitude: latitude,
+        verifiedLongitude: longitude,
       };
     } catch (error) {
       lastError = error;
@@ -959,5 +980,94 @@ function safeJson(text) {
     return JSON.parse(text);
   } catch {
     return null;
+  }
+}
+
+const REGION_GEODATA_BG = {
+  Africa: { timezone: 'Africa/Johannesburg', locale: 'en-ZA', latitude: -26.2041, longitude: 28.0473 },
+  Americas: { timezone: 'America/New_York', locale: 'en-US', latitude: 40.7128, longitude: -74.0060 },
+  Asia: { timezone: 'Asia/Singapore', locale: 'en-SG', latitude: 1.3521, longitude: 103.8198 },
+  Europe: { timezone: 'Europe/London', locale: 'en-GB', latitude: 51.5074, longitude: -0.1278 },
+  Oceania: { timezone: 'Australia/Sydney', locale: 'en-AU', latitude: -33.8688, longitude: 151.2093 },
+  Antarctic: { timezone: 'Antarctica/McMurdo', locale: 'en-US', latitude: -77.8460, longitude: 166.6660 },
+  World: { timezone: 'UTC', locale: 'en-US', latitude: 0, longitude: 0 },
+};
+
+const COUNTRY_GEODATA_OVERRIDES_BG = {
+  US: { timezone: 'America/New_York', locale: 'en-US', latitude: 40.7128, longitude: -74.0060 },
+  IN: { timezone: 'Asia/Kolkata', locale: 'en-IN', latitude: 19.0760, longitude: 72.8777 },
+  GB: { timezone: 'Europe/London', locale: 'en-GB', latitude: 51.5074, longitude: -0.1278 },
+  CA: { timezone: 'America/Toronto', locale: 'en-CA', latitude: 43.6532, longitude: -79.3832 },
+  AU: { timezone: 'Australia/Sydney', locale: 'en-AU', latitude: -33.8688, longitude: 151.2093 },
+  DE: { timezone: 'Europe/Berlin', locale: 'de-DE', latitude: 52.5200, longitude: 13.4050 },
+  FR: { timezone: 'Europe/Paris', locale: 'fr-FR', latitude: 48.8566, longitude: 2.3522 },
+  JP: { timezone: 'Asia/Tokyo', locale: 'ja-JP', latitude: 35.6762, longitude: 139.6503 },
+  CN: { timezone: 'Asia/Shanghai', locale: 'zh-CN', latitude: 31.2304, longitude: 121.4737 },
+  BR: { timezone: 'America/Sao_Paulo', locale: 'pt-BR', latitude: -23.5505, longitude: -46.6333 },
+  ZA: { timezone: 'Africa/Johannesburg', locale: 'en-ZA', latitude: -26.2041, longitude: 28.0473 },
+  RU: { timezone: 'Europe/Moscow', locale: 'ru-RU', latitude: 55.7558, longitude: 37.6173 },
+  MX: { timezone: 'America/Mexico_City', locale: 'es-MX', latitude: 19.4326, longitude: -99.1332 },
+  NZ: { timezone: 'Pacific/Auckland', locale: 'en-NZ', latitude: -36.8485, longitude: 174.7633 },
+  SG: { timezone: 'Asia/Singapore', locale: 'en-SG', latitude: 1.3521, longitude: 103.8198 },
+  AE: { timezone: 'Asia/Dubai', locale: 'en-AE', latitude: 25.2048, longitude: 55.2708 },
+};
+
+function getCountryDefaultGeoBackground(countryCode) {
+  const code = String(countryCode || '').trim().toUpperCase();
+  if (COUNTRY_GEODATA_OVERRIDES_BG[code]) {
+    return COUNTRY_GEODATA_OVERRIDES_BG[code];
+  }
+  return REGION_GEODATA_BG.Americas;
+}
+
+async function updateActiveSpoof() {
+  const stored = await storageGet(['newIdentity.current', 'newIdentity.proxy', 'newIdentity.settings']);
+  const identity = stored['newIdentity.current'] || null;
+  const proxy = stored['newIdentity.proxy'] || null;
+  const settings = stored['newIdentity.settings'] || {};
+
+  let timezone = '';
+  let locale = '';
+  let latitude = null;
+  let longitude = null;
+
+  if (settings.antiFingerprint !== false) {
+    if (proxy && proxy.enabled && proxy.connected && proxy.currentProxy) {
+      const p = proxy.currentProxy;
+      timezone = p.verifiedTimezone || '';
+      latitude = p.verifiedLatitude !== undefined ? p.verifiedLatitude : null;
+      longitude = p.verifiedLongitude !== undefined ? p.verifiedLongitude : null;
+      
+      const country = p.verifiedCountry || proxy.country || 'US';
+      const fallbackGeo = getCountryDefaultGeoBackground(country);
+      
+      timezone = timezone || fallbackGeo.timezone;
+      latitude = latitude !== null ? latitude : fallbackGeo.latitude;
+      longitude = longitude !== null ? longitude : fallbackGeo.longitude;
+      
+      if (identity && identity.countryCode === country) {
+        locale = identity.locale;
+      } else {
+        locale = fallbackGeo.locale;
+      }
+    } else if (identity) {
+      timezone = identity.timezone;
+      locale = identity.locale;
+      latitude = identity.latitude;
+      longitude = identity.longitude;
+    }
+  }
+
+  if (timezone || locale || latitude !== null) {
+    await storageSet({
+      'newIdentity.activeSpoof': {
+        timezone: timezone || 'UTC',
+        locale: locale || 'en-US',
+        latitude: latitude !== null ? latitude : 0,
+        longitude: longitude !== null ? longitude : 0,
+      }
+    });
+  } else {
+    await storageSet({ 'newIdentity.activeSpoof': null });
   }
 }
