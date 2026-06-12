@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
   autoFill: false,
   cardAutoFill: false,
   antiFingerprint: true,
+  seed: '',
 };
 
 const COUNTRY_OVERRIDES = {
@@ -526,6 +527,8 @@ const els = {
   autoFillToggle: document.querySelector('#autoFillToggle'),
   cardAutoFillToggle: document.querySelector('#cardAutoFillToggle'),
   antiFingerprintToggle: document.querySelector('#antiFingerprintToggle'),
+  seedInput: document.querySelector('#seedInput'),
+  randomizeSeedBtn: document.querySelector('#randomizeSeedBtn'),
   statusLines: document.querySelectorAll('[data-status-line]'),
   messageList: document.querySelector('#messageList'),
   historyList: document.querySelector('#historyList'),
@@ -635,6 +638,8 @@ function bindEvents() {
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
   els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
   els.antiFingerprintToggle.addEventListener('change', handleAntiFingerprintToggle);
+  els.seedInput.addEventListener('input', handleSeedInput);
+  els.randomizeSeedBtn.addEventListener('click', handleRandomizeSeed);
   els.exportJsonBtn.addEventListener('click', exportProfilesJson);
   els.exportCsvBtn.addEventListener('click', exportProfilesCsv);
   els.importJsonBtn.addEventListener('click', () => els.importProfilesInput.click());
@@ -703,6 +708,7 @@ function hydrateControls() {
   els.autoFillToggle.checked = state.settings.autoFill;
   els.cardAutoFillToggle.checked = state.settings.cardAutoFill;
   els.antiFingerprintToggle.checked = state.settings.antiFingerprint;
+  els.seedInput.value = state.settings.seed || '';
 }
 
 function activateTab(tab) {
@@ -725,6 +731,14 @@ function activateTab(tab) {
 }
 
 async function generateIdentity(showStatus) {
+  const seedVal = String(state.settings.seed || '').trim();
+  if (seedVal) {
+    const hash = hashStringToInt(seedVal);
+    randomSource = mulberry32(hash);
+  } else {
+    randomSource = Math.random;
+  }
+
   const country = COUNTRIES[state.settings.country] || COUNTRIES.US;
   const style = state.settings.nameStyle;
   const resolvedStyle = style === 'any' ? pick(['female', 'male']) : style;
@@ -1628,6 +1642,7 @@ async function saveSettingsFromControls() {
     autoFill: state.settings.autoFill,
     cardAutoFill: els.cardAutoFillToggle.checked,
     antiFingerprint: els.antiFingerprintToggle.checked,
+    seed: els.seedInput.value || '',
   };
   hydrateControls();
   await persistSettings();
@@ -1691,6 +1706,20 @@ async function handleAntiFingerprintToggle() {
     await syncAutoFillPermissionState();
   }
   setStatus(state.settings.antiFingerprint ? 'Anti-fingerprinting is on.' : 'Anti-fingerprinting is off.', 'success');
+}
+
+async function handleSeedInput() {
+  state.settings.seed = els.seedInput.value || '';
+  await persistSettings();
+}
+
+async function handleRandomizeSeed() {
+  const roll = Math.floor(Math.random() * 900) + 100;
+  const newSeed = `seed-${roll}`;
+  els.seedInput.value = newSeed;
+  state.settings.seed = newSeed;
+  await persistSettings();
+  generateIdentity(true);
 }
 
 async function syncAutoFillPermissionState() {
@@ -2245,8 +2274,12 @@ function setStatus(message, type = '') {
 }
 
 function buildMailboxLocalPart(firstName, lastName, attempt) {
-  const seed = `${slug(firstName)}.${slug(lastName)}.${Date.now().toString(36)}${rand(100, 999)}${attempt || ''}`;
-  return seed.replace(/^\.+|\.+$/g, '').slice(0, 54) || `user.${Date.now().toString(36)}`;
+  const suffix = randomSource === Math.random
+    ? Date.now().toString(36) + rand(100, 999)
+    : String(rand(100000, 999999));
+
+  const seed = `${slug(firstName)}.${slug(lastName)}.${suffix}${attempt || ''}`;
+  return seed.replace(/^\.+|\.+$/g, '').slice(0, 54) || `user.${suffix}`;
 }
 
 function createIdentityProfile(identity) {
@@ -2558,12 +2591,31 @@ function slug(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '');
 }
 
+let randomSource = Math.random;
+
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+}
+
+function hashStringToInt(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+  }
+  return hash;
+}
+
 function rand(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.floor(randomSource() * (max - min + 1)) + min;
 }
 
 function pick(items) {
-  return items[Math.floor(Math.random() * items.length)];
+  return items[Math.floor(randomSource() * items.length)];
 }
 
 function shuffle(items) {

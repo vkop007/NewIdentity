@@ -1367,3 +1367,18 @@ select:disabled {
     color: var(--text);
   }
 }
+
+.seed-input-container {
+  display: flex;
+  gap: 8px;
+}
+
+.seed-input-container input {
+  flex: 1;
+}
+
+.seed-input-container button {
+  white-space: nowrap;
+  min-height: 46px;
+  border-radius: 14px;
+}
