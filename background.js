@@ -1031,6 +1031,12 @@ async function updateActiveSpoof() {
   let latitude = null;
   let longitude = null;
 
+  let hardwareConcurrency = null;
+  let deviceMemory = null;
+  let webglVendor = '';
+  let webglRenderer = '';
+  let canvasNoise = 0;
+
   if (settings.antiFingerprint !== false) {
     if (proxy && proxy.enabled && proxy.connected && proxy.currentProxy) {
       const p = proxy.currentProxy;
@@ -1058,13 +1064,34 @@ async function updateActiveSpoof() {
     }
   }
 
-  if (timezone || locale || latitude !== null) {
+  if (settings.fingerprintMasking !== false) {
+    if (identity) {
+      hardwareConcurrency = identity.hardwareConcurrency || 4;
+      deviceMemory = identity.deviceMemory || 8;
+      webglVendor = identity.webglVendor || 'Google Inc. (NVIDIA)';
+      webglRenderer = identity.webglRenderer || 'ANGLE (NVIDIA GeForce GTX 1050 Ti Direct3D11)';
+      canvasNoise = identity.canvasNoise !== undefined ? identity.canvasNoise : 127;
+    } else {
+      hardwareConcurrency = 4;
+      deviceMemory = 8;
+      webglVendor = 'Google Inc. (NVIDIA)';
+      webglRenderer = 'ANGLE (NVIDIA GeForce GTX 1050 Ti Direct3D11)';
+      canvasNoise = 127;
+    }
+  }
+
+  if (timezone || locale || latitude !== null || hardwareConcurrency !== null) {
     await storageSet({
       'newIdentity.activeSpoof': {
         timezone: timezone || 'UTC',
         locale: locale || 'en-US',
         latitude: latitude !== null ? latitude : 0,
         longitude: longitude !== null ? longitude : 0,
+        hardwareConcurrency,
+        deviceMemory,
+        webglVendor,
+        webglRenderer,
+        canvasNoise,
       }
     });
   } else {

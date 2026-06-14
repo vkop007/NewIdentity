@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   cardAutoFill: false,
   antiFingerprint: true,
   seed: '',
+  fingerprintMasking: true,
 };
 
 const COUNTRY_OVERRIDES = {
@@ -527,6 +528,7 @@ const els = {
   autoFillToggle: document.querySelector('#autoFillToggle'),
   cardAutoFillToggle: document.querySelector('#cardAutoFillToggle'),
   antiFingerprintToggle: document.querySelector('#antiFingerprintToggle'),
+  fingerprintMaskingToggle: document.querySelector('#fingerprintMaskingToggle'),
   seedInput: document.querySelector('#seedInput'),
   randomizeSeedBtn: document.querySelector('#randomizeSeedBtn'),
   statusLines: document.querySelectorAll('[data-status-line]'),
@@ -638,6 +640,7 @@ function bindEvents() {
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
   els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
   els.antiFingerprintToggle.addEventListener('change', handleAntiFingerprintToggle);
+  els.fingerprintMaskingToggle.addEventListener('change', handleFingerprintMaskingToggle);
   els.seedInput.addEventListener('input', handleSeedInput);
   els.randomizeSeedBtn.addEventListener('click', handleRandomizeSeed);
   els.exportJsonBtn.addEventListener('click', exportProfilesJson);
@@ -708,6 +711,7 @@ function hydrateControls() {
   els.autoFillToggle.checked = state.settings.autoFill;
   els.cardAutoFillToggle.checked = state.settings.cardAutoFill;
   els.antiFingerprintToggle.checked = state.settings.antiFingerprint;
+  els.fingerprintMaskingToggle.checked = state.settings.fingerprintMasking;
   els.seedInput.value = state.settings.seed || '';
 }
 
@@ -1642,6 +1646,7 @@ async function saveSettingsFromControls() {
     autoFill: state.settings.autoFill,
     cardAutoFill: els.cardAutoFillToggle.checked,
     antiFingerprint: els.antiFingerprintToggle.checked,
+    fingerprintMasking: els.fingerprintMaskingToggle.checked,
     seed: els.seedInput.value || '',
   };
   hydrateControls();
@@ -1706,6 +1711,15 @@ async function handleAntiFingerprintToggle() {
     await syncAutoFillPermissionState();
   }
   setStatus(state.settings.antiFingerprint ? 'Anti-fingerprinting is on.' : 'Anti-fingerprinting is off.', 'success');
+}
+
+async function handleFingerprintMaskingToggle() {
+  state.settings.fingerprintMasking = els.fingerprintMaskingToggle.checked;
+  await persistSettings();
+  if (state.settings.autoFill) {
+    await syncAutoFillPermissionState();
+  }
+  setStatus(state.settings.fingerprintMasking ? 'Extended masking is on.' : 'Extended masking is off.', 'success');
 }
 
 async function handleSeedInput() {
@@ -2294,6 +2308,17 @@ function createIdentityProfile(identity) {
   const countryCode = identity.countryCode || '';
   const countryConfig = COUNTRIES[countryCode] || {};
 
+  const hardwareConcurrency = pick([2, 4, 8, 12, 16]);
+  const deviceMemory = pick([2, 4, 8, 16]);
+  const gpuIndex = rand(0, 2);
+  const webglVendor = ['Intel Open Source Technology Center', 'Google Inc. (NVIDIA)', 'Google Inc. (Intel)'][gpuIndex];
+  const webglRenderer = [
+    'Mesa DRI Intel(R) HD Graphics 4000 (IVB GT1)',
+    'ANGLE (NVIDIA GeForce GTX 1050 Ti Direct3D11)',
+    'ANGLE (Intel(R) HD Graphics 520 Direct3D11)'
+  ][gpuIndex];
+  const canvasNoise = rand(1, 255);
+
   return {
     middleName,
     fullNameWithMiddle: `${identity.firstName} ${middleName} ${identity.lastName}`,
@@ -2322,6 +2347,11 @@ function createIdentityProfile(identity) {
     locale: countryConfig.locale || 'en-US',
     latitude: countryConfig.latitude || 0,
     longitude: countryConfig.longitude || 0,
+    hardwareConcurrency,
+    deviceMemory,
+    webglVendor,
+    webglRenderer,
+    canvasNoise,
   };
 }
 
