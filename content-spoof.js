@@ -40,6 +40,10 @@
               opts.timeZone = opts.timeZone || targetTimezone;
               return new OriginalDateTimeFormat(locales || targetLocale, opts);
             };
+            Intl.DateTimeFormat.prototype = OriginalDateTimeFormat.prototype;
+            if (OriginalDateTimeFormat.supportedLocalesOf) {
+              Intl.DateTimeFormat.supportedLocalesOf = OriginalDateTimeFormat.supportedLocalesOf;
+            }
             
             const originalGetTimezoneOffset = Date.prototype.getTimezoneOffset;
             Date.prototype.getTimezoneOffset = function() {
@@ -61,16 +65,107 @@
                 return originalGetTimezoneOffset.call(this);
               }
             };
+
+            const originalToString = Date.prototype.toString;
+            Date.prototype.toString = function() {
+              try {
+                const formatter = new OriginalDateTimeFormat('en-US', {
+                  timeZone: targetTimezone,
+                  weekday: 'short',
+                  month: 'short',
+                  day: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: false
+                });
+                const parts = formatter.formatToParts(this);
+                const getPart = name => parts.find(p => p.type === name).value;
+                
+                const weekday = getPart('weekday');
+                const month = getPart('month');
+                const day = getPart('day');
+                const year = getPart('year');
+                const hour = getPart('hour');
+                const minute = getPart('minute');
+                const second = getPart('second');
+                
+                const offsetVal = this.getTimezoneOffset();
+                const sign = offsetVal > 0 ? '-' : '+';
+                const absOffset = Math.abs(offsetVal);
+                const hours = String(Math.floor(absOffset / 60)).padStart(2, '0');
+                const minutes = String(absOffset % 60).padStart(2, '0');
+                
+                let tzName = '';
+                try {
+                  const nameParts = new OriginalDateTimeFormat('en-US', {
+                    timeZone: targetTimezone,
+                    timeZoneName: 'long'
+                  }).formatToParts(this);
+                  tzName = nameParts.find(p => p.type === 'timeZoneName')?.value || '';
+                } catch (err) {}
+                
+                const tzSuffix = tzName ? (' (' + tzName + ')') : '';
+                return weekday + ' ' + month + ' ' + day + ' ' + year + ' ' + hour + ':' + minute + ':' + second + ' GMT' + sign + hours + minutes + tzSuffix;
+              } catch (e) {
+                return originalToString.call(this);
+              }
+            };
+
+            const originalToTimeString = Date.prototype.toTimeString;
+            Date.prototype.toTimeString = function() {
+              try {
+                const str = this.toString();
+                const parts = str.split(' ');
+                return parts.slice(4).join(' ');
+              } catch (e) {
+                return originalToTimeString.call(this);
+              }
+            };
+
+            const originalToLocaleString = Date.prototype.toLocaleString;
+            Date.prototype.toLocaleString = function(locales, options) {
+              try {
+                const opts = options || {};
+                opts.timeZone = opts.timeZone || targetTimezone;
+                return originalToLocaleString.call(this, locales || targetLocale, opts);
+              } catch (e) {
+                return originalToLocaleString.call(this, locales, options);
+              }
+            };
+
+            const originalToLocaleDateString = Date.prototype.toLocaleDateString;
+            Date.prototype.toLocaleDateString = function(locales, options) {
+              try {
+                const opts = options || {};
+                opts.timeZone = opts.timeZone || targetTimezone;
+                return originalToLocaleDateString.call(this, locales || targetLocale, opts);
+              } catch (e) {
+                return originalToLocaleDateString.call(this, locales, options);
+              }
+            };
+
+            const originalToLocaleTimeString = Date.prototype.toLocaleTimeString;
+            Date.prototype.toLocaleTimeString = function(locales, options) {
+              try {
+                const opts = options || {};
+                opts.timeZone = opts.timeZone || targetTimezone;
+                return originalToLocaleTimeString.call(this, locales || targetLocale, opts);
+              } catch (e) {
+                return originalToLocaleTimeString.call(this, locales, options);
+              }
+            };
           } catch (e) {}
 
           try {
-            Object.defineProperty(navigator, 'language', { get: () => targetLocale, configurable: true });
-            Object.defineProperty(navigator, 'languages', { get: () => [targetLocale, 'en-US', 'en'], configurable: true });
+            Object.defineProperty(Navigator.prototype, 'language', { get: () => targetLocale, configurable: true });
+            Object.defineProperty(Navigator.prototype, 'languages', { get: () => [targetLocale, 'en-US', 'en'], configurable: true });
           } catch (e) {}
 
           try {
-            if (navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition = function(success, error, options) {
+            if (window.Geolocation) {
+              Geolocation.prototype.getCurrentPosition = function(success, error, options) {
                 setTimeout(() => {
                   success({
                     coords: {
@@ -87,7 +182,7 @@
                 }, 0);
               };
               
-              navigator.geolocation.watchPosition = function(success, error, options) {
+              Geolocation.prototype.watchPosition = function(success, error, options) {
                 const watchId = Math.floor(Math.random() * 10000);
                 setTimeout(() => {
                   success({
