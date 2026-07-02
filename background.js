@@ -14,6 +14,8 @@ const REFRESH_PERIOD_MINUTES = 1;
 const DEFAULT_PROXY_COUNTRY = 'US';
 const MAX_PROXIES = 40;
 const MAX_CONNECT_ATTEMPTS = 25;
+const MAX_PROXY_AUTH_ATTEMPTS = 2;
+const MAX_WEBSHARE_PAGES = 5;
 const PROXY_TEST_TIMEOUT_MS = 5000;
 const SUPPORTED_PROTOCOLS = ['https', 'http', 'socks5', 'socks4'];
 const PROTOCOL_PRIORITY = {
@@ -23,6 +25,13 @@ const PROTOCOL_PRIORITY = {
   socks4: 3,
 };
 const WEBSHARE_PROVIDER = 'Webshare Free';
+const PROXY_SOURCE_BYPASS_HOSTS = [
+  'api.proxifly.dev',
+  'api.proxyscrape.com',
+  'cdn.jsdelivr.net',
+  'proxy.webshare.io',
+  'proxylist.geonode.com',
+];
 const SOURCE_PRIORITY = {
   [WEBSHARE_PROVIDER]: 0,
   'Proxifly API': 1,
@@ -45,13 +54,22 @@ const DEFAULT_PROXY_SECRETS = {
 };
 
 let activeProxyAuth = null;
+const proxyAuthAttempts = new Map();
 
 if (chrome.webRequest?.onAuthRequired) {
   chrome.webRequest.onAuthRequired.addListener(
     handleProxyAuthRequired,
     { urls: ['<all_urls>'] },
-    ['blocking']
+    ['asyncBlocking']
   );
+}
+
+if (chrome.webRequest?.onCompleted) {
+  chrome.webRequest.onCompleted.addListener(clearProxyAuthAttempt, { urls: ['<all_urls>'] });
+}
+
+if (chrome.webRequest?.onErrorOccurred) {
+  chrome.webRequest.onErrorOccurred.addListener(clearProxyAuthAttempt, { urls: ['<all_urls>'] });
 }
 
 chrome.runtime.onInstalled.addListener(() => {
@@ -99,7 +117,9 @@ async function setupProxyRefresh() {
 
   const state = await getProxyState();
   if (state.enabled && state.currentProxy) {
-    setActiveProxyAuth(state.currentProxy);
+    await applyProxy(state.currentProxy).catch(() => {
+      setActiveProxyAuth(state.currentProxy);
+    });
     await updateBadge(state);
   }
 
@@ -286,11 +306,13 @@ async function recoverProxyConnection(state, country) {
 
 async function connectFirstWorkingProxy(candidates, state) {
   const country = normalizeCountryCode(state.country) || DEFAULT_PROXY_COUNTRY;
+  const failures = [];
 
   for (const proxy of candidates.slice(0, MAX_CONNECT_ATTEMPTS)) {
     try {
       return await connectProxy(proxy, state);
-    } catch {
+    } catch (error) {
+      failures.push({ proxy, error });
       // Try the next fresh route. Failed candidates are cleared inside connectProxy().
     }
   }
@@ -301,7 +323,7 @@ async function connectFirstWorkingProxy(candidates, state) {
     enabled: false,
     connected: false,
     currentProxy: null,
-    error: `No tested ${country} proxy could connect. Browser proxy is off.`,
+    error: buildProxyConnectError(country, failures),
   };
   await setProxyState(nextState);
   await updateBadge(nextState);
@@ -317,7 +339,8 @@ async function connectProxy(proxy, state = DEFAULT_PROXY_STATE, options = {}) {
     verification = await verifyProxyTunnel(country);
   } catch (error) {
     await clearProxy().catch(() => {});
-    throw new Error(`${formatProxyAddress(proxy)} failed the tunnel test.`);
+    const reason = error instanceof Error ? error.message : 'Tunnel test failed.';
+    throw new Error(`${formatProxyAddress(proxy)} failed the tunnel test: ${reason}`);
   }
 
   const verifiedProxy = {
@@ -356,8 +379,16 @@ async function disconnectProxy() {
 }
 
 async function saveWebshareToken(token) {
-  const webshareToken = String(token || '').trim();
+  const webshareToken = normalizeWebshareTokenInput(token);
   if (!webshareToken) throw new Error('Paste a Webshare API token first.');
+
+  const state = await getProxyState();
+  const country = normalizeCountryCode(state.country) || DEFAULT_PROXY_COUNTRY;
+  try {
+    await fetchProxySource(createWebshareSource(country, { webshareToken }), country);
+  } catch (error) {
+    throw new Error(formatWebshareSourceError(error));
+  }
 
   const secrets = await getProxySecrets();
   await setProxySecrets({
@@ -365,7 +396,6 @@ async function saveWebshareToken(token) {
     webshareToken,
   });
 
-  const state = await getProxyState();
   await setProxyState({
     ...state,
     proxies: [],
@@ -458,15 +488,9 @@ async function requestProxyList(country) {
 
 function getProxySources(country, secrets = DEFAULT_PROXY_SECRETS) {
   const encodedCountry = encodeURIComponent(country);
+  const webshareSource = createWebshareSource(country, secrets);
   return [
-    ...(secrets.webshareToken ? [{
-      name: WEBSHARE_PROVIDER,
-      url: `${WEBSHARE_API_BASE_URL}&country_code__in=${encodedCountry}`,
-      parser: 'webshare-api',
-      headers: {
-        authorization: `Token ${secrets.webshareToken}`,
-      },
-    }] : []),
+    ...(webshareSource ? [webshareSource] : []),
     {
       name: 'Proxifly API',
       url: `${PROXIFLY_API_BASE_URL}&country=${encodedCountry}`,
@@ -490,21 +514,25 @@ function getProxySources(country, secrets = DEFAULT_PROXY_SECRETS) {
   ];
 }
 
-async function fetchProxySource(source, country) {
-  const response = await fetch(source.url, {
-    method: 'GET',
+function createWebshareSource(country, secrets = DEFAULT_PROXY_SECRETS) {
+  if (!secrets.webshareToken) return null;
+  const encodedCountry = encodeURIComponent(country);
+  return {
+    name: WEBSHARE_PROVIDER,
+    url: `${WEBSHARE_API_BASE_URL}&country_code__in=${encodedCountry}`,
+    parser: 'webshare-api',
     headers: {
-      accept: ['geonode', 'proxifly-api', 'webshare-api'].includes(source.parser) ? 'application/json' : 'text/plain',
-      ...(source.headers || {}),
+      authorization: `Token ${secrets.webshareToken}`,
     },
-  });
-  const text = await response.text();
-  if (!response.ok) throw new Error(`${source.name} proxy request failed with status ${response.status}.`);
+  };
+}
 
+async function fetchProxySource(source, country) {
   if (source.parser === 'webshare-api') {
-    return parseWebsharePayload(safeJson(text), source.name, country);
+    return fetchWebshareSource(source, country);
   }
 
+  const text = await fetchProxySourceText(source, source.url);
   if (source.parser === 'proxifly-api') {
     return parseProxiflyPayload(safeJson(text), source.name, country);
   }
@@ -519,6 +547,72 @@ async function fetchProxySource(source, country) {
   return parseProxyUrlList(text)
     .map((proxyUrl, index) => normalizeProxyUrl(proxyUrl, source.name, index, country))
     .filter(Boolean);
+}
+
+async function fetchProxySourceText(source, url) {
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      accept: ['geonode', 'proxifly-api', 'webshare-api'].includes(source.parser) ? 'application/json' : 'text/plain',
+      ...(source.headers || {}),
+    },
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`${source.name} proxy request failed with status ${response.status}.`);
+
+  return text;
+}
+
+async function fetchWebshareSource(source, country) {
+  let url = source.url;
+  const proxies = [];
+
+  for (let page = 0; url && page < MAX_WEBSHARE_PAGES; page += 1) {
+    const text = await fetchProxySourceText(source, url);
+    const payload = safeJson(text);
+    if (!payload) throw new Error(`${source.name} proxy request returned invalid JSON.`);
+
+    proxies.push(...parseWebsharePayload(payload, source.name, country));
+    url = getNextWebsharePageUrl(payload.next);
+  }
+
+  return uniqueProxies(proxies);
+}
+
+function getNextWebsharePageUrl(nextUrl) {
+  if (!nextUrl) return '';
+
+  try {
+    const url = new URL(nextUrl);
+    return url.origin === 'https://proxy.webshare.io' ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function normalizeWebshareTokenInput(token) {
+  let value = String(token || '').trim().replace(/^["']|["']$/g, '');
+  const authorizationMatch = value.match(/^authorization\s*:\s*(.+)$/i);
+  if (authorizationMatch) value = authorizationMatch[1].trim();
+
+  const tokenMatch = value.match(/^token\s+(.+)$/i);
+  if (tokenMatch) value = tokenMatch[1].trim();
+
+  return value.replace(/^["']|["']$/g, '').trim();
+}
+
+function formatWebshareSourceError(error) {
+  const message = error instanceof Error ? error.message : 'Webshare source could not be verified.';
+  if (/\b401\b/.test(message)) {
+    return 'Webshare rejected this API token. Paste the API key value from Webshare, not the proxy username or password.';
+  }
+  if (/\b403\b/.test(message)) {
+    return 'Webshare accepted the token, but this account cannot list proxies for the selected plan.';
+  }
+  if (/\b429\b/.test(message)) {
+    return 'Webshare rate-limited proxy list requests. Wait about a minute, then try again.';
+  }
+  return `Webshare source could not be verified. ${message}`;
 }
 
 function parseWebsharePayload(payload, provider, country) {
@@ -759,13 +853,14 @@ function applyProxy(proxy) {
         host: proxy.host,
         port: proxy.port,
       },
-      bypassList: ['<local>', 'localhost', '127.0.0.1'],
+      bypassList: ['<local>', 'localhost', '127.0.0.1', ...PROXY_SOURCE_BYPASS_HOSTS],
     },
   });
 }
 
 function clearProxy() {
   activeProxyAuth = null;
+  proxyAuthAttempts.clear();
   return proxySettingsClear();
 }
 
@@ -774,6 +869,8 @@ function chromeProxyScheme(protocol) {
 }
 
 function setActiveProxyAuth(proxy) {
+  proxyAuthAttempts.clear();
+
   if (!proxy?.username || !proxy?.password) {
     activeProxyAuth = null;
     return;
@@ -787,20 +884,66 @@ function setActiveProxyAuth(proxy) {
   };
 }
 
-function handleProxyAuthRequired(details) {
-  if (!details?.isProxy || !activeProxyAuth) return {};
+function handleProxyAuthRequired(details, callback) {
+  resolveProxyAuthResponse(details)
+    .then(response => callback(response))
+    .catch(() => callback({}));
+}
+
+async function resolveProxyAuthResponse(details) {
+  if (!details?.isProxy) return {};
+
+  const proxyAuth = await getActiveProxyAuth();
+  if (!proxyAuth) return {};
 
   const challengerHost = String(details.challenger?.host || '');
   const challengerPort = Number(details.challenger?.port || 0);
-  if (challengerHost && challengerHost !== activeProxyAuth.host) return {};
-  if (challengerPort && challengerPort !== activeProxyAuth.port) return {};
+  if (challengerHost && challengerHost !== proxyAuth.host) return {};
+  if (challengerPort && challengerPort !== proxyAuth.port) return {};
+
+  const attemptKey = getProxyAuthAttemptKey(details);
+  const attemptCount = (proxyAuthAttempts.get(attemptKey) || 0) + 1;
+  proxyAuthAttempts.set(attemptKey, attemptCount);
+  if (attemptCount > MAX_PROXY_AUTH_ATTEMPTS) {
+    return { cancel: true };
+  }
 
   return {
     authCredentials: {
-      username: activeProxyAuth.username,
-      password: activeProxyAuth.password,
+      username: proxyAuth.username,
+      password: proxyAuth.password,
     },
   };
+}
+
+async function getActiveProxyAuth() {
+  if (activeProxyAuth) return activeProxyAuth;
+
+  const state = await getProxyState();
+  if (state.enabled && state.currentProxy) {
+    setActiveProxyAuth(state.currentProxy);
+  }
+
+  return activeProxyAuth;
+}
+
+function getProxyAuthAttemptKey(details) {
+  return [
+    details?.requestId || 'unknown',
+    details?.challenger?.host || '',
+    details?.challenger?.port || '',
+  ].join(':');
+}
+
+function clearProxyAuthAttempt(details) {
+  if (!details?.requestId || proxyAuthAttempts.size === 0) return;
+
+  const requestPrefix = `${details.requestId}:`;
+  for (const key of proxyAuthAttempts.keys()) {
+    if (key.startsWith(requestPrefix)) {
+      proxyAuthAttempts.delete(key);
+    }
+  }
 }
 
 async function verifyProxyTunnel(targetCountry) {
@@ -860,6 +1003,11 @@ async function fetchWithTimeout(url, options, timeoutMs) {
       ...options,
       signal: controller.signal,
     });
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Verification timed out after ${Math.round(timeoutMs / 1000)}s.`);
+    }
+    throw error;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -969,6 +1117,21 @@ function uniqueProxies(proxies) {
     seen.add(key);
     return true;
   });
+}
+
+function buildProxyConnectError(country, failures) {
+  const testedCount = failures.length;
+  const webshareCount = failures.filter(({ proxy }) => proxy?.provider === WEBSHARE_PROVIDER).length;
+  const lastFailure = failures[testedCount - 1]?.error;
+  const lastMessage = lastFailure instanceof Error ? lastFailure.message : '';
+  const routeLabel = testedCount === 1 ? 'route' : 'routes';
+  const webshareLabel = webshareCount === 1 ? 'Webshare route' : 'Webshare routes';
+  const triedMessage = testedCount
+    ? ` Tried ${testedCount} ${routeLabel}${webshareCount ? `, including ${webshareCount} ${webshareLabel}` : ''}.`
+    : '';
+  const lastErrorMessage = lastMessage ? ` Last error: ${lastMessage}` : '';
+
+  return `No tested ${country} proxy could connect.${triedMessage}${lastErrorMessage} Browser proxy is off.`;
 }
 
 function formatProxyAddress(proxy) {
