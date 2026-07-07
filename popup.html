@@ -29,220 +29,294 @@
       </nav>
 
       <section class="tab-panel active" data-panel="home">
-        <label class="control">
-          <span>Country</span>
-          <select id="countrySelect"></select>
-        </label>
-
-        <section class="identity-card" aria-live="polite">
-          <div class="field-grid">
-            <button class="identity-field" data-copy="firstName" type="button">
-              <span>First name</span>
-              <strong id="firstName">-</strong>
-            </button>
-            <button class="identity-field" data-copy="lastName" type="button">
-              <span>Last name</span>
-              <strong id="lastName">-</strong>
-            </button>
-          </div>
-
-          <button class="identity-field wide" data-copy="fullName" type="button">
-            <span>Full name</span>
-            <strong id="fullName">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="fullNameWithMiddle" type="button">
-            <span>Full name with middle</span>
-            <strong id="fullNameWithMiddle">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="username" type="button">
-            <span>Username</span>
-            <strong id="username">-</strong>
-          </button>
-          <button class="identity-field wide highlight" data-copy="email" type="button">
-            <span>Email</span>
-            <strong id="email">-</strong>
-          </button>
-
-          <div class="field-grid">
-            <button class="identity-field" data-copy="password" type="button">
-              <span>Password</span>
-              <strong id="password">-</strong>
-            </button>
-            <button class="identity-field" data-copy="confirmPassword" type="button">
-              <span>Confirm password</span>
-              <strong id="confirmPassword">-</strong>
-            </button>
-          </div>
-
-          <div class="field-grid">
-            <button class="identity-field" data-copy="prefix" type="button">
-              <span>Title</span>
-              <strong id="prefix">-</strong>
-            </button>
-            <button class="identity-field" data-copy="gender" type="button">
-              <span>Gender</span>
-              <strong id="gender">-</strong>
-            </button>
-          </div>
-          <div class="field-grid">
-            <button class="identity-field" data-copy="age" type="button">
-              <span>Age</span>
-              <strong id="age">-</strong>
-            </button>
-            <button class="identity-field" data-copy="country" type="button">
+        <section class="home-command-card">
+          <div class="home-command-header">
+            <label class="control compact-control">
               <span>Country</span>
-              <strong id="country">-</strong>
-            </button>
+              <select id="countrySelect"></select>
+            </label>
+            <button class="primary-action generate-compact" id="generateBtn" type="button">Generate</button>
           </div>
-
-          <button class="identity-field wide" data-copy="phone" type="button">
-            <span>Phone</span>
-            <strong id="phone">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="phoneNational" type="button">
-            <span>National phone</span>
-            <strong id="phoneNational">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="address1" type="button">
-            <span>Address</span>
-            <strong id="address1">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="address2" type="button">
-            <span>Address 2</span>
-            <strong id="address2">-</strong>
-          </button>
-
-          <div class="field-grid">
-            <button class="identity-field" data-copy="city" type="button">
-              <span>City</span>
-              <strong id="city">-</strong>
-            </button>
-            <button class="identity-field" data-copy="postalCode" type="button">
-              <span>Postal code</span>
-              <strong id="postalCode">-</strong>
-            </button>
-          </div>
-
-          <button class="identity-field wide" data-copy="state" type="button">
-            <span>State</span>
-            <strong id="state">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="addressBlock" type="button">
-            <span>Address block</span>
-            <strong id="addressBlock">-</strong>
-          </button>
-          <div class="field-grid">
-            <button class="identity-field" data-copy="dateOfBirth" type="button">
-              <span>Date of birth</span>
-              <strong id="dateOfBirth">-</strong>
-            </button>
-            <button class="identity-field" data-copy="birthYear" type="button">
-              <span>Birth year</span>
-              <strong id="birthYear">-</strong>
-            </button>
-          </div>
-          <div class="field-grid">
-            <button class="identity-field" data-copy="birthMonthName" type="button">
-              <span>Birth month</span>
-              <strong id="birthMonthName">-</strong>
-            </button>
-            <button class="identity-field" data-copy="birthDay" type="button">
-              <span>Birth day</span>
-              <strong id="birthDay">-</strong>
-            </button>
-          </div>
-          <button class="identity-field wide" data-copy="company" type="button">
-            <span>Company</span>
-            <strong id="company">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="jobTitle" type="button">
-            <span>Job title</span>
-            <strong id="jobTitle">-</strong>
-          </button>
-          <button class="identity-field wide" data-copy="website" type="button">
-            <span>Website</span>
-            <strong id="website">-</strong>
-          </button>
-
-          <div class="private-card-heading">
-            <span>Card details</span>
-            <button class="copy-chip private-card-toggle" id="cardRevealBtn" type="button">Reveal</button>
-          </div>
-          <p class="private-card-status" id="cardSafetyStatus">No private card configured.</p>
-          <button class="identity-field wide private-card-field" data-copy="cardNumber" type="button">
-            <span>Card number</span>
-            <strong id="cardNumber">-</strong>
-          </button>
-          <div class="field-grid">
-            <button class="identity-field private-card-field" data-copy="cardExpiry" type="button">
-              <span>Expiry</span>
-              <strong id="cardExpiry">-</strong>
-            </button>
-            <button class="identity-field private-card-field" data-copy="cardCvv" type="button">
-              <span>CVV</span>
-              <strong id="cardCvv">-</strong>
-            </button>
-          </div>
-          <button class="identity-field wide private-card-field" data-copy="cardLine" type="button">
-            <span>Card line</span>
-            <strong id="cardLine">-</strong>
-          </button>
+          <p class="status-line" id="statusLine" data-status-line role="status" aria-live="polite">Working temporary inbox powered by Catchmail.</p>
         </section>
 
-        <div class="action-row">
-          <button class="primary-action" id="generateBtn" type="button">Generate identity</button>
-          <button class="secondary-action" id="copyAllBtn" type="button">Copy profile</button>
-          <button class="secondary-action" id="fillPageBtn" type="button">Fill form</button>
-        </div>
-        <p class="status-line" id="statusLine" data-status-line role="status" aria-live="polite">Working temporary inbox powered by Catchmail.</p>
+        <section class="profile-summary-card" aria-live="polite">
+          <div class="summary-heading">
+            <div>
+              <span>Current profile</span>
+              <h2>Ready to copy</h2>
+            </div>
+            <button class="copy-chip" data-copy="fullName" type="button">Copy name</button>
+          </div>
+          <div class="summary-fields">
+            <button class="identity-field summary-field" data-copy="fullName" type="button">
+              <span>Full name</span>
+              <strong id="fullName">-</strong>
+            </button>
+            <button class="identity-field summary-field highlight" data-copy="email" type="button">
+              <span>Email</span>
+              <strong id="email">-</strong>
+            </button>
+          </div>
+          <div class="summary-actions">
+            <button class="secondary-action" id="copyAllBtn" type="button">Copy profile</button>
+            <button class="secondary-action" id="fillPageBtn" type="button">Fill form</button>
+          </div>
+        </section>
+
+        <section class="identity-groups" aria-label="Identity details">
+          <details class="identity-group" open>
+            <summary>
+              <span>
+                <strong>Account basics</strong>
+                <small>Name, username, and password</small>
+              </span>
+            </summary>
+            <div class="identity-group-body">
+              <div class="field-grid">
+                <button class="identity-field" data-copy="firstName" type="button">
+                  <span>First name</span>
+                  <strong id="firstName">-</strong>
+                </button>
+                <button class="identity-field" data-copy="lastName" type="button">
+                  <span>Last name</span>
+                  <strong id="lastName">-</strong>
+                </button>
+              </div>
+              <button class="identity-field wide" data-copy="fullNameWithMiddle" type="button">
+                <span>Full name with middle</span>
+                <strong id="fullNameWithMiddle">-</strong>
+              </button>
+              <button class="identity-field wide" data-copy="username" type="button">
+                <span>Username</span>
+                <strong id="username">-</strong>
+              </button>
+              <div class="field-grid">
+                <button class="identity-field" data-copy="password" type="button">
+                  <span>Password</span>
+                  <strong id="password">-</strong>
+                </button>
+                <button class="identity-field" data-copy="confirmPassword" type="button">
+                  <span>Confirm password</span>
+                  <strong id="confirmPassword">-</strong>
+                </button>
+              </div>
+            </div>
+          </details>
+
+          <details class="identity-group">
+            <summary>
+              <span>
+                <strong>Personal details</strong>
+                <small>Title, gender, age, and birth date</small>
+              </span>
+            </summary>
+            <div class="identity-group-body">
+              <div class="field-grid">
+                <button class="identity-field" data-copy="prefix" type="button">
+                  <span>Title</span>
+                  <strong id="prefix">-</strong>
+                </button>
+                <button class="identity-field" data-copy="gender" type="button">
+                  <span>Gender</span>
+                  <strong id="gender">-</strong>
+                </button>
+              </div>
+              <div class="field-grid">
+                <button class="identity-field" data-copy="age" type="button">
+                  <span>Age</span>
+                  <strong id="age">-</strong>
+                </button>
+                <button class="identity-field" data-copy="country" type="button">
+                  <span>Country</span>
+                  <strong id="country">-</strong>
+                </button>
+              </div>
+              <div class="field-grid">
+                <button class="identity-field" data-copy="dateOfBirth" type="button">
+                  <span>Date of birth</span>
+                  <strong id="dateOfBirth">-</strong>
+                </button>
+                <button class="identity-field" data-copy="birthYear" type="button">
+                  <span>Birth year</span>
+                  <strong id="birthYear">-</strong>
+                </button>
+              </div>
+              <div class="field-grid">
+                <button class="identity-field" data-copy="birthMonthName" type="button">
+                  <span>Birth month</span>
+                  <strong id="birthMonthName">-</strong>
+                </button>
+                <button class="identity-field" data-copy="birthDay" type="button">
+                  <span>Birth day</span>
+                  <strong id="birthDay">-</strong>
+                </button>
+              </div>
+            </div>
+          </details>
+
+          <details class="identity-group">
+            <summary>
+              <span>
+                <strong>Contact and address</strong>
+                <small>Phone number and mailing address</small>
+              </span>
+            </summary>
+            <div class="identity-group-body">
+              <button class="identity-field wide" data-copy="phone" type="button">
+                <span>Phone</span>
+                <strong id="phone">-</strong>
+              </button>
+              <button class="identity-field wide" data-copy="phoneNational" type="button">
+                <span>National phone</span>
+                <strong id="phoneNational">-</strong>
+              </button>
+              <button class="identity-field wide" data-copy="address1" type="button">
+                <span>Address</span>
+                <strong id="address1">-</strong>
+              </button>
+              <button class="identity-field wide" data-copy="address2" type="button">
+                <span>Address 2</span>
+                <strong id="address2">-</strong>
+              </button>
+              <div class="field-grid">
+                <button class="identity-field" data-copy="city" type="button">
+                  <span>City</span>
+                  <strong id="city">-</strong>
+                </button>
+                <button class="identity-field" data-copy="postalCode" type="button">
+                  <span>Postal code</span>
+                  <strong id="postalCode">-</strong>
+                </button>
+              </div>
+              <button class="identity-field wide" data-copy="state" type="button">
+                <span>State</span>
+                <strong id="state">-</strong>
+              </button>
+              <button class="identity-field wide" data-copy="addressBlock" type="button">
+                <span>Address block</span>
+                <strong id="addressBlock">-</strong>
+              </button>
+            </div>
+          </details>
+
+          <details class="identity-group">
+            <summary>
+              <span>
+                <strong>Work and web</strong>
+                <small>Company, job title, and website</small>
+              </span>
+            </summary>
+            <div class="identity-group-body">
+              <button class="identity-field wide" data-copy="company" type="button">
+                <span>Company</span>
+                <strong id="company">-</strong>
+              </button>
+              <button class="identity-field wide" data-copy="jobTitle" type="button">
+                <span>Job title</span>
+                <strong id="jobTitle">-</strong>
+              </button>
+              <button class="identity-field wide" data-copy="website" type="button">
+                <span>Website</span>
+                <strong id="website">-</strong>
+              </button>
+            </div>
+          </details>
+
+          <details class="identity-group payment-group">
+            <summary>
+              <span>
+                <strong>Card details</strong>
+                <small id="cardSafetyStatus">No private card configured.</small>
+              </span>
+              <button class="copy-chip private-card-toggle" id="cardRevealBtn" type="button">Reveal</button>
+            </summary>
+            <div class="identity-group-body">
+              <button class="identity-field wide private-card-field" data-copy="cardNumber" type="button">
+                <span>Card number</span>
+                <strong id="cardNumber">-</strong>
+              </button>
+              <div class="field-grid">
+                <button class="identity-field private-card-field" data-copy="cardExpiry" type="button">
+                  <span>Expiry</span>
+                  <strong id="cardExpiry">-</strong>
+                </button>
+                <button class="identity-field private-card-field" data-copy="cardCvv" type="button">
+                  <span>CVV</span>
+                  <strong id="cardCvv">-</strong>
+                </button>
+              </div>
+              <button class="identity-field wide private-card-field" data-copy="cardLine" type="button">
+                <span>Card line</span>
+                <strong id="cardLine">-</strong>
+              </button>
+            </div>
+          </details>
+        </section>
       </section>
 
       <section class="tab-panel" data-panel="messages">
-        <div class="section-heading">
-          <div>
-            <span>Inbox</span>
-            <h2>Mail center</h2>
+        <section class="mail-hero-card">
+          <div class="mail-hero-top">
+            <div class="mail-hero-copy">
+              <span>Inbox</span>
+              <h2>Mail center</h2>
+              <p>Receive verification emails and pull OTP codes without leaving the popup.</p>
+            </div>
+            <div class="mail-hero-actions">
+              <button class="primary-action" id="refreshInboxBtn" type="button">Check mail</button>
+              <button class="ghost-button action-pill" id="copyLatestOtpBtn" type="button">Copy OTP</button>
+            </div>
           </div>
-          <div class="heading-actions">
-            <button class="ghost-button action-pill" id="copyLatestOtpBtn" type="button">Copy OTP</button>
-            <button class="ghost-button action-pill" id="refreshInboxBtn" type="button">Check mail</button>
-          </div>
-        </div>
 
-        <section class="inbox-card">
-          <div class="inbox-address-row">
+          <div class="inbox-address-row mailbox-address-card">
             <div>
               <span id="mailboxState">Live mailbox</span>
               <strong id="inboxAddress">-</strong>
             </div>
             <button class="copy-chip" id="copyInboxBtn" type="button" aria-label="Copy inbox address">Copy</button>
           </div>
-          <div class="inbox-summary-row">
-            <span>Incoming mail</span>
-            <strong id="inboxCount">No messages</strong>
-          </div>
-          <div class="inbox-list" id="inboxList"></div>
+
           <p class="provider-note">
             Inbox by <a href="https://catchmail.io/" rel="noreferrer" target="_blank">Catchmail</a>, with Mail.tm fallback.
           </p>
         </section>
 
-        <div class="section-heading compact">
-          <div>
-            <span>Snippets</span>
-            <h2>Profile copy blocks</h2>
+        <section class="mail-list-card">
+          <div class="mail-section-heading">
+            <div>
+              <span>Incoming mail</span>
+              <strong id="inboxCount">No messages</strong>
+            </div>
+            <span class="mail-live-chip">Auto refresh</span>
           </div>
-        </div>
-        <div class="message-list" id="messageList"></div>
+          <div class="inbox-list" id="inboxList"></div>
+        </section>
 
-        <div class="section-heading compact">
-          <div>
-            <span>History</span>
-            <h2>Recent identities</h2>
+        <details class="identity-group mail-detail-group">
+          <summary>
+            <span>
+              <strong>Profile copy blocks</strong>
+              <small>Reusable snippets generated from the current identity</small>
+            </span>
+          </summary>
+          <div class="identity-group-body">
+            <div class="message-list" id="messageList"></div>
           </div>
-          <button class="ghost-button danger" id="clearHistoryBtn" type="button">Clear</button>
-        </div>
-        <div class="history-list" id="historyList"></div>
+        </details>
+
+        <details class="identity-group mail-detail-group history-detail-group">
+          <summary>
+            <span>
+              <strong>Recent identities</strong>
+              <small>Saved history from earlier generated profiles</small>
+            </span>
+            <button class="ghost-button danger history-clear-button" id="clearHistoryBtn" type="button">Clear</button>
+          </summary>
+          <div class="identity-group-body">
+            <div class="history-list" id="historyList"></div>
+          </div>
+        </details>
       </section>
 
       <section class="tab-panel" data-panel="proxy">

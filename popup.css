@@ -1382,3 +1382,759 @@ select:disabled {
   min-height: 46px;
   border-radius: 14px;
 }
+
+/* Airy popup redesign: clearer hierarchy, softer sections, less visual crowding. */
+:root {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-strong: #eef4ff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #dbe5f3;
+  --primary: #2563eb;
+  --primary-strong: #1d4ed8;
+  --primary-soft: #eaf2ff;
+  --success: #0891b2;
+  --danger: #e11d48;
+  --shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+html,
+body {
+  width: 420px;
+  min-width: 420px;
+  max-width: 420px;
+  height: 640px;
+  max-height: 640px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.popup-shell {
+  width: 420px;
+  height: 640px;
+  padding: 16px;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 34%),
+    linear-gradient(180deg, #fbfdff 0%, var(--bg) 42%);
+  scrollbar-color: rgba(37, 99, 235, 0.34) transparent;
+}
+
+.popup-shell::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.26);
+  background-clip: content-box;
+}
+
+.app-header {
+  gap: 11px;
+  margin-bottom: 12px;
+  padding: 2px 2px 0;
+}
+
+.brand-orb {
+  width: 46px;
+  height: 46px;
+  border-color: rgba(37, 99, 235, 0.16);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.12);
+}
+
+.brand-orb svg {
+  width: 27px;
+  height: 27px;
+  stroke: var(--primary);
+}
+
+.header-copy span,
+.section-heading span,
+.control span {
+  color: var(--primary);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.header-copy h1 {
+  margin-top: 1px;
+  color: var(--text);
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+
+.tabs {
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(219, 229, 243, 0.92);
+  border-radius: 15px;
+  background: rgba(232, 239, 250, 0.88);
+  box-shadow: none;
+}
+
+.tab {
+  min-height: 34px;
+  border-radius: 11px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 780;
+}
+
+.tab.active {
+  background: var(--surface);
+  color: var(--primary-strong);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.home-command-card,
+.profile-summary-card,
+.identity-group,
+.message-card,
+.history-card,
+.switch-card,
+.inbox-address-row,
+.provider-card,
+.proxy-card,
+.proxy-stable-card,
+.proxy-route,
+.settings-status-grid div {
+  border: 1px solid rgba(219, 229, 243, 0.94);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.home-command-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 20px;
+  margin-bottom: 10px;
+}
+
+.home-command-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: end;
+  gap: 10px;
+}
+
+.compact-control {
+  gap: 6px;
+  margin: 0;
+}
+
+.control input,
+.control select,
+.proxy-token-field input,
+.proxy-country-select {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--text);
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.control input,
+.control select {
+  min-height: 42px;
+  border-radius: 13px;
+  padding: 0 12px;
+}
+
+.generate-compact {
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 13px;
+  white-space: nowrap;
+}
+
+.primary-action {
+  background: linear-gradient(135deg, var(--primary-strong), #38bdf8);
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.2);
+}
+
+.secondary-action,
+.ghost-button,
+.copy-chip,
+.message-action {
+  border-color: var(--line);
+  background: #fff;
+  color: var(--text);
+  box-shadow: none;
+}
+
+.ghost-button,
+.copy-chip,
+.message-action.primary,
+.ghost-button.action-pill {
+  border-color: rgba(37, 99, 235, 0.16);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.status-line {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.profile-summary-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 22px;
+  margin-bottom: 10px;
+}
+
+.summary-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.summary-heading span {
+  display: block;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.summary-heading h2 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.summary-fields,
+.identity-group-body {
+  display: grid;
+  gap: 8px;
+}
+
+.summary-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.summary-actions .secondary-action {
+  min-height: 40px;
+  border-radius: 13px;
+}
+
+.identity-groups {
+  display: grid;
+  gap: 10px;
+}
+
+.identity-group {
+  overflow: hidden;
+  border-radius: 20px;
+}
+
+.identity-group summary {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 12px 42px 12px 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.identity-group summary::-webkit-details-marker {
+  display: none;
+}
+
+.identity-group summary::after {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  color: var(--muted);
+  content: "⌄";
+  font-size: 16px;
+  transform: translateY(-50%);
+  transition: transform 160ms ease;
+}
+
+.identity-group[open] summary::after {
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.identity-group summary strong {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.identity-group summary small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.identity-group-body {
+  padding: 0 12px 12px;
+}
+
+.field-grid {
+  gap: 8px;
+}
+
+.identity-field {
+  min-height: 56px;
+  padding: 10px 11px;
+  border-color: var(--line);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.identity-field.wide {
+  min-height: 54px;
+}
+
+.identity-field:hover {
+  transform: none;
+  border-color: rgba(37, 99, 235, 0.36);
+  background: #f8fbff;
+}
+
+.identity-field span {
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.09em;
+}
+
+.identity-field strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.summary-field {
+  min-height: 64px;
+  border-color: rgba(37, 99, 235, 0.13);
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+}
+
+.summary-field strong {
+  font-size: 16px;
+}
+
+.identity-field.highlight {
+  border-color: rgba(37, 99, 235, 0.22);
+  background: var(--primary-soft);
+}
+
+.payment-group summary {
+  padding-right: 88px;
+}
+
+.payment-group summary::after {
+  right: 76px;
+}
+
+.payment-group .private-card-toggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  z-index: 1;
+  min-height: 28px;
+  transform: translateY(-50%);
+}
+
+.private-card-status {
+  min-height: 0;
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.private-card-field {
+  border-color: rgba(8, 145, 178, 0.18);
+  background: rgba(236, 254, 255, 0.72);
+}
+
+.action-row,
+.identity-card,
+.private-card-heading {
+  display: none;
+}
+
+.section-heading h2 {
+  color: var(--text);
+}
+
+.inbox-card {
+  background: transparent;
+}
+
+.inbox-address-row,
+.proxy-card,
+.proxy-stable-card {
+  border-radius: 20px;
+}
+
+.inbox-address-row span,
+.provider-card span,
+.message-meta,
+.proxy-status-row span,
+.proxy-route-label,
+.proxy-chip,
+.proxy-stable-header span,
+.proxy-token-field span,
+.proxy-metrics span,
+.settings-status-grid span,
+.inbox-summary-row span {
+  color: var(--muted);
+}
+
+.inbox-address-row strong,
+.provider-card strong,
+.message-card strong,
+.history-card strong,
+.proxy-status-row strong,
+.proxy-route strong,
+.proxy-stable-header strong,
+.proxy-metrics strong,
+.settings-status-grid strong,
+.switch-card strong {
+  color: var(--text);
+}
+
+.message-card small,
+.history-card small,
+.provider-card small,
+.switch-card small,
+.proxy-current,
+.provider-note,
+.message-preview,
+.message-time,
+.proxy-reconnect-toggle small {
+  color: var(--muted);
+}
+
+.inbox-message,
+.proxy-card-status,
+.proxy-metrics div,
+.proxy-reconnect-toggle,
+.message-details,
+.empty-state,
+.proxy-source-steps span {
+  border-color: var(--line);
+  background: #f8fbff;
+}
+
+.sender-dot {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.message-body {
+  color: var(--text);
+}
+
+.proxy-signal {
+  box-shadow: 0 0 0 5px rgba(225, 29, 72, 0.1);
+}
+
+.proxy-signal.connected {
+  box-shadow: 0 0 0 5px rgba(8, 145, 178, 0.12);
+}
+
+.settings-action-grid .secondary-action,
+.proxy-source-actions .secondary-action,
+.proxy-source-actions .ghost-button {
+  background: #fff;
+}
+
+/* Inbox redesign: dashboard-style mail section with less clutter. */
+.tab-panel[data-panel="messages"].active {
+  display: grid;
+  gap: 10px;
+}
+
+.mail-hero-card,
+.mail-list-card {
+  border: 1px solid rgba(219, 229, 243, 0.94);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+}
+
+.mail-hero-card {
+  display: grid;
+  gap: 11px;
+  padding: 13px;
+}
+
+.mail-hero-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  align-items: start;
+  gap: 12px;
+}
+
+.mail-hero-copy {
+  min-width: 0;
+}
+
+.mail-hero-copy span,
+.mail-section-heading span {
+  display: block;
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.mail-hero-copy h2 {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.mail-hero-copy p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.mail-hero-actions {
+  display: grid;
+  gap: 7px;
+}
+
+.mail-hero-actions .primary-action,
+.mail-hero-actions .ghost-button {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 13px;
+  font-size: 12px;
+}
+
+.mailbox-address-card {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 10px;
+  padding: 11px;
+  border-color: rgba(37, 99, 235, 0.16);
+  border-radius: 17px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+.mailbox-address-card strong {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.mailbox-address-card .copy-chip {
+  min-height: 32px;
+  padding: 0 13px;
+}
+
+.mail-list-card {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.mail-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mail-section-heading strong {
+  display: block;
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.mail-live-chip {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid rgba(8, 145, 178, 0.16);
+  border-radius: 999px;
+  background: rgba(236, 254, 255, 0.82);
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.mail-live-chip::before {
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.inbox-list {
+  gap: 9px;
+}
+
+.inbox-list .empty-state {
+  min-height: 126px;
+  padding: 20px 16px;
+  border-color: rgba(37, 99, 235, 0.18);
+  border-style: solid;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+}
+
+.empty-icon {
+  display: grid;
+  place-items: center;
+  color: var(--primary-strong);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.empty-icon::before {
+  content: "✉";
+}
+
+.empty-state.empty .empty-icon::before {
+  content: "0";
+}
+
+.empty-state strong {
+  color: var(--text);
+}
+
+.inbox-message {
+  gap: 10px;
+  padding: 12px;
+  border-color: rgba(219, 229, 243, 0.94);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.message-card-header {
+  align-items: center;
+  gap: 10px;
+}
+
+.sender-cluster {
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.sender-dot {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.message-card-header strong {
+  margin-top: 2px;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.message-code {
+  min-height: 28px;
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.message-details {
+  border-color: rgba(219, 229, 243, 0.94);
+  background: #f8fbff;
+}
+
+.message-details summary {
+  color: var(--primary-strong);
+}
+
+.message-actions {
+  gap: 7px;
+}
+
+.message-action {
+  min-height: 30px;
+  border-radius: 11px;
+  background: #fff;
+}
+
+.message-action.primary {
+  border-color: rgba(37, 99, 235, 0.16);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+
+.mail-detail-group summary {
+  min-height: 56px;
+}
+
+.mail-detail-group .identity-group-body {
+  padding-top: 0;
+}
+
+.mail-detail-group:not([open]) {
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.045);
+}
+
+.history-clear-button {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.history-detail-group summary {
+  padding-right: 98px;
+}
+
+.history-detail-group summary::after {
+  right: 74px;
+}
+
+.mail-detail-group .history-clear-button {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  z-index: 1;
+  transform: translateY(-50%);
+}
+
+.message-list,
+.history-list {
+  gap: 8px;
+}
+
+.message-list .message-card,
+.history-list .history-card {
+  border-color: rgba(219, 229, 243, 0.94);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: none;
+}
