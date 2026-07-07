@@ -629,8 +629,16 @@ function bindEvents() {
   document.querySelector('#refreshInboxBtn').addEventListener('click', () => refreshInbox(true));
   els.copyLatestOtpBtn.addEventListener('click', copyLatestOtp);
   document.querySelector('#copyInboxBtn').addEventListener('click', copyInboxAddress);
-  document.querySelector('#clearHistoryBtn').addEventListener('click', clearHistory);
-  els.cardRevealBtn.addEventListener('click', toggleCardReveal);
+  document.querySelector('#clearHistoryBtn').addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    clearHistory();
+  });
+  els.cardRevealBtn.addEventListener('click', event => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleCardReveal();
+  });
   els.proxyRefreshBtn.addEventListener('click', () => refreshProxyList(true));
   els.proxyToggleBtn.addEventListener('click', toggleProxyConnection);
   els.proxyCountrySelect.addEventListener('change', handleProxyCountryChange);
