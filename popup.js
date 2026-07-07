@@ -27,6 +27,7 @@ const DEFAULT_SETTINGS = {
   antiFingerprint: true,
   seed: '',
   fingerprintMasking: true,
+  theme: 'system',
 };
 
 const COUNTRY_OVERRIDES = {
@@ -523,6 +524,7 @@ let state = {
 const els = {
   countrySelect: document.querySelector('#countrySelect'),
   nameStyleSelect: document.querySelector('#nameStyleSelect'),
+  themeSelect: document.querySelector('#themeSelect'),
   saveHistoryToggle: document.querySelector('#saveHistoryToggle'),
   autoCopyToggle: document.querySelector('#autoCopyToggle'),
   autoFillToggle: document.querySelector('#autoFillToggle'),
@@ -584,6 +586,7 @@ async function init() {
       [STORAGE_KEYS.history]: state.history,
     });
   }
+  applyTheme();
   hydrateControls();
   await syncAutoFillPermissionState();
   await loadPrivateCard();
@@ -649,6 +652,7 @@ function bindEvents() {
   els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
   els.antiFingerprintToggle.addEventListener('change', handleAntiFingerprintToggle);
   els.fingerprintMaskingToggle.addEventListener('change', handleFingerprintMaskingToggle);
+  els.themeSelect.addEventListener('change', handleThemeChange);
   els.seedInput.addEventListener('input', handleSeedInput);
   els.randomizeSeedBtn.addEventListener('click', handleRandomizeSeed);
   els.exportJsonBtn.addEventListener('click', exportProfilesJson);
@@ -670,6 +674,7 @@ function bindEvents() {
 async function loadState() {
   const stored = await chrome.storage.local.get(Object.values(STORAGE_KEYS));
   state.settings = { ...DEFAULT_SETTINGS, ...(stored[STORAGE_KEYS.settings] || {}) };
+  state.settings.theme = normalizeTheme(state.settings.theme);
   state.identity = stored[STORAGE_KEYS.identity] || null;
   state.history = Array.isArray(stored[STORAGE_KEYS.history])
     ? stored[STORAGE_KEYS.history].filter(item => item?.mailbox?.address)
@@ -713,6 +718,7 @@ function normalizePrivateCard(card = {}) {
 
 function hydrateControls() {
   els.countrySelect.value = state.settings.country;
+  els.themeSelect.value = normalizeTheme(state.settings.theme);
   els.nameStyleSelect.value = state.settings.nameStyle;
   els.saveHistoryToggle.checked = state.settings.saveHistory;
   els.autoCopyToggle.checked = state.settings.autoCopy;
@@ -1649,6 +1655,7 @@ async function saveSettingsFromControls() {
     ...state.settings,
     country: els.countrySelect.value,
     nameStyle: els.nameStyleSelect.value,
+    theme: normalizeTheme(els.themeSelect.value),
     saveHistory: els.saveHistoryToggle.checked,
     autoCopy: els.autoCopyToggle.checked,
     autoFill: state.settings.autoFill,
@@ -1665,6 +1672,25 @@ async function saveSettingsFromControls() {
 
 async function persistSettings() {
   await chrome.storage.local.set({ [STORAGE_KEYS.settings]: state.settings });
+}
+
+function normalizeTheme(value) {
+  return ['system', 'light', 'dark'].includes(value) ? value : 'system';
+}
+
+function applyTheme(theme = state.settings.theme) {
+  document.documentElement.dataset.theme = normalizeTheme(theme);
+}
+
+async function handleThemeChange() {
+  state.settings.theme = normalizeTheme(els.themeSelect.value);
+  applyTheme();
+  await persistSettings();
+  setStatus(`Theme set to ${themeLabel(state.settings.theme)}.`, 'success');
+}
+
+function themeLabel(theme) {
+  return theme === 'system' ? 'System' : theme === 'dark' ? 'Dark' : 'Light';
 }
 
 async function handleAutoFillToggle() {
