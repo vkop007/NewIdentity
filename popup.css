@@ -2138,3 +2138,220 @@ body {
   background: #fff;
   box-shadow: none;
 }
+
+/* Theme picker support. Default is System via html[data-theme="system"]. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f5f7fb;
+  --surface: #ffffff;
+  --surface-strong: #eef4ff;
+  --text: #0f172a;
+  --muted: #64748b;
+  --line: #dbe5f3;
+  --primary: #2563eb;
+  --primary-strong: #1d4ed8;
+  --primary-soft: #eaf2ff;
+  --success: #0891b2;
+  --danger: #e11d48;
+  --shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #030712;
+  --surface: #0a1020;
+  --surface-strong: #101b33;
+  --text: #f4f8ff;
+  --muted: #91a4c7;
+  --line: #1d2d4a;
+  --primary: #60a5fa;
+  --primary-strong: #3b82f6;
+  --primary-soft: #0d2850;
+  --success: #22d3ee;
+  --danger: #fb7185;
+  --shadow: 0 24px 60px rgba(0, 8, 24, 0.46);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    color-scheme: dark;
+    --bg: #030712;
+    --surface: #0a1020;
+    --surface-strong: #101b33;
+    --text: #f4f8ff;
+    --muted: #91a4c7;
+    --line: #1d2d4a;
+    --primary: #60a5fa;
+    --primary-strong: #3b82f6;
+    --primary-soft: #0d2850;
+    --success: #22d3ee;
+    --danger: #fb7185;
+    --shadow: 0 24px 60px rgba(0, 8, 24, 0.46);
+  }
+}
+
+:root[data-theme="dark"] .popup-shell {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 34%),
+    linear-gradient(180deg, #071225 0%, var(--bg) 42%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .popup-shell {
+    background:
+      radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 34%),
+      linear-gradient(180deg, #071225 0%, var(--bg) 42%);
+  }
+}
+
+:root[data-theme="dark"] .brand-orb,
+:root[data-theme="dark"] .home-command-card,
+:root[data-theme="dark"] .profile-summary-card,
+:root[data-theme="dark"] .identity-group,
+:root[data-theme="dark"] .mail-hero-card,
+:root[data-theme="dark"] .mail-list-card,
+:root[data-theme="dark"] .message-card,
+:root[data-theme="dark"] .history-card,
+:root[data-theme="dark"] .switch-card,
+:root[data-theme="dark"] .inbox-address-row,
+:root[data-theme="dark"] .provider-card,
+:root[data-theme="dark"] .proxy-card,
+:root[data-theme="dark"] .proxy-stable-card,
+:root[data-theme="dark"] .proxy-route,
+:root[data-theme="dark"] .settings-status-grid div,
+:root[data-theme="dark"] .message-list .message-card,
+:root[data-theme="dark"] .history-list .history-card,
+:root[data-theme="dark"] .inbox-message {
+  border-color: var(--line);
+  background: rgba(7, 18, 37, 0.86);
+  box-shadow: var(--shadow);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .brand-orb,
+  :root[data-theme="system"] .home-command-card,
+  :root[data-theme="system"] .profile-summary-card,
+  :root[data-theme="system"] .identity-group,
+  :root[data-theme="system"] .mail-hero-card,
+  :root[data-theme="system"] .mail-list-card,
+  :root[data-theme="system"] .message-card,
+  :root[data-theme="system"] .history-card,
+  :root[data-theme="system"] .switch-card,
+  :root[data-theme="system"] .inbox-address-row,
+  :root[data-theme="system"] .provider-card,
+  :root[data-theme="system"] .proxy-card,
+  :root[data-theme="system"] .proxy-stable-card,
+  :root[data-theme="system"] .proxy-route,
+  :root[data-theme="system"] .settings-status-grid div,
+  :root[data-theme="system"] .message-list .message-card,
+  :root[data-theme="system"] .history-list .history-card,
+  :root[data-theme="system"] .inbox-message {
+    border-color: var(--line);
+    background: rgba(7, 18, 37, 0.86);
+    box-shadow: var(--shadow);
+  }
+}
+
+:root[data-theme="dark"] .tabs,
+:root[data-theme="dark"] .mailbox-address-card,
+:root[data-theme="dark"] .summary-field,
+:root[data-theme="dark"] .identity-field,
+:root[data-theme="dark"] .control input,
+:root[data-theme="dark"] .control select,
+:root[data-theme="dark"] .proxy-token-field input,
+:root[data-theme="dark"] .proxy-country-select,
+:root[data-theme="dark"] .secondary-action,
+:root[data-theme="dark"] .ghost-button,
+:root[data-theme="dark"] .copy-chip,
+:root[data-theme="dark"] .message-action,
+:root[data-theme="dark"] .settings-action-grid .secondary-action,
+:root[data-theme="dark"] .proxy-source-actions .secondary-action,
+:root[data-theme="dark"] .proxy-source-actions .ghost-button {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .tabs,
+  :root[data-theme="system"] .mailbox-address-card,
+  :root[data-theme="system"] .summary-field,
+  :root[data-theme="system"] .identity-field,
+  :root[data-theme="system"] .control input,
+  :root[data-theme="system"] .control select,
+  :root[data-theme="system"] .proxy-token-field input,
+  :root[data-theme="system"] .proxy-country-select,
+  :root[data-theme="system"] .secondary-action,
+  :root[data-theme="system"] .ghost-button,
+  :root[data-theme="system"] .copy-chip,
+  :root[data-theme="system"] .message-action,
+  :root[data-theme="system"] .settings-action-grid .secondary-action,
+  :root[data-theme="system"] .proxy-source-actions .secondary-action,
+  :root[data-theme="system"] .proxy-source-actions .ghost-button {
+    border-color: var(--line);
+    background: var(--surface);
+    color: var(--text);
+  }
+}
+
+:root[data-theme="dark"] .tab.active,
+:root[data-theme="dark"] .identity-field:hover,
+:root[data-theme="dark"] .message-details,
+:root[data-theme="dark"] .empty-state,
+:root[data-theme="dark"] .inbox-list .empty-state,
+:root[data-theme="dark"] .inbox-message,
+:root[data-theme="dark"] .proxy-card-status,
+:root[data-theme="dark"] .proxy-metrics div,
+:root[data-theme="dark"] .proxy-reconnect-toggle,
+:root[data-theme="dark"] .proxy-source-steps span,
+:root[data-theme="dark"] .sender-dot {
+  border-color: var(--line);
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .tab.active,
+  :root[data-theme="system"] .identity-field:hover,
+  :root[data-theme="system"] .message-details,
+  :root[data-theme="system"] .empty-state,
+  :root[data-theme="system"] .inbox-list .empty-state,
+  :root[data-theme="system"] .inbox-message,
+  :root[data-theme="system"] .proxy-card-status,
+  :root[data-theme="system"] .proxy-metrics div,
+  :root[data-theme="system"] .proxy-reconnect-toggle,
+  :root[data-theme="system"] .proxy-source-steps span,
+  :root[data-theme="system"] .sender-dot {
+    border-color: var(--line);
+    background: var(--surface-strong);
+    color: var(--text);
+  }
+}
+
+:root[data-theme="dark"] .identity-field.highlight,
+:root[data-theme="dark"] .private-card-field,
+:root[data-theme="dark"] .message-code,
+:root[data-theme="dark"] .message-action.primary,
+:root[data-theme="dark"] .ghost-button.action-pill,
+:root[data-theme="dark"] .mail-live-chip {
+  border-color: rgba(96, 165, 250, 0.28);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .identity-field.highlight,
+  :root[data-theme="system"] .private-card-field,
+  :root[data-theme="system"] .message-code,
+  :root[data-theme="system"] .message-action.primary,
+  :root[data-theme="system"] .ghost-button.action-pill,
+  :root[data-theme="system"] .mail-live-chip {
+    border-color: rgba(96, 165, 250, 0.28);
+    background: var(--primary-soft);
+    color: var(--primary);
+  }
+}
+
+.theme-control {
+  margin-bottom: 0;
+}
