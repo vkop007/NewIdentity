@@ -64,6 +64,18 @@
           </div>
         </section>
 
+        <section class="autofill-preview-card" id="autofillPreviewCard" hidden>
+          <div class="autofill-preview-heading">
+            <div>
+              <span>Autofill preview</span>
+              <h2 id="autofillPreviewTitle">Matched fields</h2>
+            </div>
+            <button class="ghost-button action-pill" id="cancelFillPreviewBtn" type="button">Cancel</button>
+          </div>
+          <div class="autofill-preview-list" id="autofillPreviewList"></div>
+          <button class="primary-action full" id="confirmFillPreviewBtn" type="button">Fill matched fields</button>
+        </section>
+
         <section class="identity-groups" aria-label="Identity details">
           <details class="identity-group" open>
             <summary>
@@ -460,6 +472,20 @@
             <small>Ask once for website access, then fill empty matching form fields automatically.</small>
           </span>
           <input id="autoFillToggle" type="checkbox" />
+        </label>
+
+        <label class="switch-card">
+          <span>
+            <strong>Preview before filling</strong>
+            <small>Show matched page fields before the manual Fill form action writes anything.</small>
+          </span>
+          <input id="fillPreviewToggle" type="checkbox" />
+        </label>
+
+        <label class="control mapping-control">
+          <span>Custom field mapping</span>
+          <textarea id="fieldMappingInput" rows="4" spellcheck="false" placeholder="login_id = username&#10;billing_zip = postalCode&#10;mobile_no = phone"></textarea>
+          <small>One rule per line: page field keyword = profile key. Example keys: email, username, firstName, lastName, phone, address1, city, state, postalCode.</small>
         </label>
 
         <label class="switch-card">
