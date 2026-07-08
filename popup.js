@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   theme: 'system',
   previewBeforeFill: true,
   customFieldMappings: '',
+  syncProxyCountry: false,
 };
 
 const COUNTRY_OVERRIDES = {
@@ -533,6 +534,7 @@ const els = {
   cardAutoFillToggle: document.querySelector('#cardAutoFillToggle'),
   fillPreviewToggle: document.querySelector('#fillPreviewToggle'),
   antiFingerprintToggle: document.querySelector('#antiFingerprintToggle'),
+  syncProxyCountryToggle: document.querySelector('#syncProxyCountryToggle'),
   fingerprintMaskingToggle: document.querySelector('#fingerprintMaskingToggle'),
   seedInput: document.querySelector('#seedInput'),
   fieldMappingInput: document.querySelector('#fieldMappingInput'),
@@ -661,6 +663,7 @@ function bindEvents() {
   els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
   els.fillPreviewToggle.addEventListener('change', handleFillPreviewToggle);
   els.antiFingerprintToggle.addEventListener('change', handleAntiFingerprintToggle);
+  els.syncProxyCountryToggle.addEventListener('change', handleSyncProxyCountryToggle);
   els.fingerprintMaskingToggle.addEventListener('change', handleFingerprintMaskingToggle);
   els.themeSelect.addEventListener('change', handleThemeChange);
   els.seedInput.addEventListener('input', handleSeedInput);
@@ -672,10 +675,11 @@ function bindEvents() {
   els.confirmFillPreviewBtn.addEventListener('click', executeFillCurrentPage);
   els.cancelFillPreviewBtn.addEventListener('click', hideAutofillPreview);
 
-  els.countrySelect.addEventListener('change', () => {
+  els.countrySelect.addEventListener('change', async () => {
     state.settings.country = els.countrySelect.value;
-    persistSettings();
-    generateIdentity(true);
+    await persistSettings();
+    await generateIdentity(true);
+    await syncProxyCountryToIdentityCountry();
   });
 
   document.querySelectorAll('[data-copy]').forEach(button => {
@@ -738,6 +742,7 @@ function hydrateControls() {
   els.cardAutoFillToggle.checked = state.settings.cardAutoFill;
   els.fillPreviewToggle.checked = state.settings.previewBeforeFill !== false;
   els.antiFingerprintToggle.checked = state.settings.antiFingerprint;
+  els.syncProxyCountryToggle.checked = Boolean(state.settings.syncProxyCountry);
   els.fingerprintMaskingToggle.checked = state.settings.fingerprintMasking;
   els.seedInput.value = state.settings.seed || '';
   els.fieldMappingInput.value = state.settings.customFieldMappings || '';
@@ -1535,6 +1540,8 @@ function createProxyRouteButton(proxy, currentProxyId) {
   checked.textContent = formatProxyTime(proxy.lastChecked);
   header.append(copy, checked);
 
+  const quality = createProxyQualityRow(proxy);
+
   const meta = document.createElement('div');
   meta.className = 'proxy-route-meta';
   [
@@ -1553,8 +1560,28 @@ function createProxyRouteButton(proxy, currentProxyId) {
     meta.append(chip);
   });
 
-  button.append(header, meta);
+  button.append(header, quality, meta);
   return button;
+}
+
+function createProxyQualityRow(proxy) {
+  const row = document.createElement('div');
+  row.className = 'proxy-quality-row';
+
+  getProxyQualityBadges(proxy).forEach(item => {
+    const badge = document.createElement('span');
+    badge.className = `proxy-quality-badge ${item.tone}`.trim();
+
+    const label = document.createElement('small');
+    label.textContent = item.label;
+    const value = document.createElement('strong');
+    value.textContent = item.value;
+
+    badge.append(label, value);
+    row.append(badge);
+  });
+
+  return row;
 }
 
 function setProxyBusy(isBusy) {
@@ -1648,6 +1675,51 @@ function formatProxyMetric(value, suffix) {
   return `${Math.round(number)} ${suffix}`;
 }
 
+function getProxyQualityBadges(proxy) {
+  return [
+    getProxySpeedQuality(proxy),
+    getProxyReliabilityQuality(proxy),
+    getProxyPrivacyQuality(proxy),
+  ];
+}
+
+function getProxySpeedQuality(proxy) {
+  const speed = Number(proxy.responseTime || proxy.latency || 0);
+  if (!Number.isFinite(speed) || speed <= 0) {
+    return { label: 'Speed', value: 'Unknown', tone: 'neutral' };
+  }
+  if (speed <= 650) return { label: 'Speed', value: `Fast · ${Math.round(speed)}ms`, tone: 'good' };
+  if (speed <= 1500) return { label: 'Speed', value: `OK · ${Math.round(speed)}ms`, tone: 'warn' };
+  return { label: 'Speed', value: `Slow · ${Math.round(speed)}ms`, tone: 'bad' };
+}
+
+function getProxyReliabilityQuality(proxy) {
+  const uptime = Number(proxy.uptime || 0);
+  if (!Number.isFinite(uptime) || uptime <= 0) {
+    return { label: 'Reliability', value: proxy.provider === 'Webshare Free' ? 'Verified' : 'Unknown', tone: proxy.provider === 'Webshare Free' ? 'good' : 'neutral' };
+  }
+  if (uptime >= 90) return { label: 'Reliability', value: `${Math.round(uptime)}% High`, tone: 'good' };
+  if (uptime >= 60) return { label: 'Reliability', value: `${Math.round(uptime)}% Medium`, tone: 'warn' };
+  return { label: 'Reliability', value: `${Math.round(uptime)}% Low`, tone: 'bad' };
+}
+
+function getProxyPrivacyQuality(proxy) {
+  const level = String(proxy.anonymityLevel || '').toLowerCase();
+  if (proxy.authenticated || level.includes('authenticated')) {
+    return { label: 'Privacy', value: 'Private auth', tone: 'good' };
+  }
+  if (level.includes('elite') || level.includes('anonymous')) {
+    return { label: 'Privacy', value: 'Anonymous', tone: 'good' };
+  }
+  if (proxy.provider === 'ProxyScrape') {
+    return { label: 'Privacy', value: 'Anonymous', tone: 'good' };
+  }
+  if (level.includes('transparent')) {
+    return { label: 'Privacy', value: 'Transparent', tone: 'bad' };
+  }
+  return { label: 'Privacy', value: 'Unknown', tone: 'neutral' };
+}
+
 function formatProxyTime(value) {
   if (!value) return 'Never';
 
@@ -1677,6 +1749,7 @@ async function saveSettingsFromControls() {
     previewBeforeFill: els.fillPreviewToggle.checked,
     customFieldMappings: els.fieldMappingInput.value || '',
     antiFingerprint: els.antiFingerprintToggle.checked,
+    syncProxyCountry: els.syncProxyCountryToggle.checked,
     fingerprintMasking: els.fingerprintMaskingToggle.checked,
     seed: els.seedInput.value || '',
   };
@@ -1768,6 +1841,41 @@ async function handleAntiFingerprintToggle() {
     await syncAutoFillPermissionState();
   }
   setStatus(state.settings.antiFingerprint ? 'Anti-fingerprinting is on.' : 'Anti-fingerprinting is off.', 'success');
+}
+
+async function handleSyncProxyCountryToggle() {
+  state.settings.syncProxyCountry = els.syncProxyCountryToggle.checked;
+  await persistSettings();
+  if (state.settings.syncProxyCountry) {
+    const synced = await syncProxyCountryToIdentityCountry({ showStatus: true });
+    setStatus(synced === false ? 'Proxy country matching is on. Sync will retry on the next country change.' : 'Proxy country matching is on.', synced === false ? 'error' : 'success');
+    return;
+  }
+  setStatus('Proxy country matching is off.', 'success');
+}
+
+async function syncProxyCountryToIdentityCountry({ showStatus = false } = {}) {
+  if (!state.settings.syncProxyCountry) return true;
+
+  const country = state.settings.country || DEFAULT_PROXY_COUNTRY;
+  if ((state.proxy?.country || DEFAULT_PROXY_COUNTRY) === country) return true;
+
+  try {
+    if (showStatus) setProxyStatus(`Matching proxy to ${getProxyCountryLabel(country)}...`, '');
+    const response = await sendProxyMessage('proxy:setCountry', { country });
+    if (!response?.ok) throw new Error(response?.error || 'Unable to sync proxy country.');
+    state.proxy = response.state;
+    renderProxy();
+    renderSettingsStatus();
+    if (showStatus) {
+      const count = state.proxy?.proxies?.length || 0;
+      setProxyStatus(count ? `Proxy routes now match ${getProxyCountryLabel(country)}.` : `No ${getProxyCountryLabel(country)} proxy routes found right now.`, count ? 'success' : 'error');
+    }
+    return true;
+  } catch (error) {
+    if (showStatus) setProxyStatus(error instanceof Error ? error.message : 'Unable to sync proxy country.', 'error');
+    return false;
+  }
 }
 
 async function handleFingerprintMaskingToggle() {

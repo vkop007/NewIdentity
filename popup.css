@@ -2509,3 +2509,120 @@ body {
     color: var(--primary);
   }
 }
+
+/* Proxy route quality badges. */
+.proxy-quality-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.proxy-quality-badge {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(100, 116, 139, 0.16);
+  border-radius: 13px;
+  background: #f8fbff;
+}
+
+.proxy-quality-badge small,
+.proxy-quality-badge strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-quality-badge small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.proxy-quality-badge strong {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.proxy-quality-badge.good {
+  border-color: rgba(8, 145, 178, 0.18);
+  background: rgba(236, 254, 255, 0.76);
+}
+
+.proxy-quality-badge.good strong {
+  color: var(--success);
+}
+
+.proxy-quality-badge.warn {
+  border-color: rgba(245, 158, 11, 0.2);
+  background: rgba(255, 251, 235, 0.9);
+}
+
+.proxy-quality-badge.warn strong {
+  color: #b45309;
+}
+
+.proxy-quality-badge.bad {
+  border-color: rgba(225, 29, 72, 0.16);
+  background: rgba(255, 241, 242, 0.9);
+}
+
+.proxy-quality-badge.bad strong {
+  color: var(--danger);
+}
+
+:root[data-theme="dark"] .proxy-quality-badge {
+  border-color: var(--line);
+  background: var(--surface-strong);
+}
+
+:root[data-theme="dark"] .proxy-quality-badge.good {
+  border-color: rgba(34, 211, 238, 0.26);
+  background: rgba(34, 211, 238, 0.08);
+}
+
+:root[data-theme="dark"] .proxy-quality-badge.warn {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+:root[data-theme="dark"] .proxy-quality-badge.warn strong {
+  color: #fbbf24;
+}
+
+:root[data-theme="dark"] .proxy-quality-badge.bad {
+  border-color: rgba(251, 113, 133, 0.24);
+  background: rgba(251, 113, 133, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] .proxy-quality-badge {
+    border-color: var(--line);
+    background: var(--surface-strong);
+  }
+
+  :root[data-theme="system"] .proxy-quality-badge.good {
+    border-color: rgba(34, 211, 238, 0.26);
+    background: rgba(34, 211, 238, 0.08);
+  }
+
+  :root[data-theme="system"] .proxy-quality-badge.warn {
+    border-color: rgba(245, 158, 11, 0.28);
+    background: rgba(245, 158, 11, 0.08);
+  }
+
+  :root[data-theme="system"] .proxy-quality-badge.warn strong {
+    color: #fbbf24;
+  }
+
+  :root[data-theme="system"] .proxy-quality-badge.bad {
+    border-color: rgba(251, 113, 133, 0.24);
+    background: rgba(251, 113, 133, 0.08);
+  }
+}
