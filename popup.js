@@ -31,6 +31,11 @@ const DEFAULT_SETTINGS = {
   previewBeforeFill: true,
   customFieldMappings: '',
   syncProxyCountry: false,
+  passwordLength: 16,
+  passwordUppercase: true,
+  passwordNumbers: true,
+  passwordSymbols: true,
+  passwordReadable: false,
 };
 
 const COUNTRY_OVERRIDES = {
@@ -537,6 +542,11 @@ const els = {
   syncProxyCountryToggle: document.querySelector('#syncProxyCountryToggle'),
   fingerprintMaskingToggle: document.querySelector('#fingerprintMaskingToggle'),
   seedInput: document.querySelector('#seedInput'),
+  passwordLengthInput: document.querySelector('#passwordLengthInput'),
+  passwordUppercaseToggle: document.querySelector('#passwordUppercaseToggle'),
+  passwordNumbersToggle: document.querySelector('#passwordNumbersToggle'),
+  passwordSymbolsToggle: document.querySelector('#passwordSymbolsToggle'),
+  passwordReadableToggle: document.querySelector('#passwordReadableToggle'),
   fieldMappingInput: document.querySelector('#fieldMappingInput'),
   randomizeSeedBtn: document.querySelector('#randomizeSeedBtn'),
   statusLines: document.querySelectorAll('[data-status-line]'),
@@ -745,6 +755,11 @@ function hydrateControls() {
   els.syncProxyCountryToggle.checked = Boolean(state.settings.syncProxyCountry);
   els.fingerprintMaskingToggle.checked = state.settings.fingerprintMasking;
   els.seedInput.value = state.settings.seed || '';
+  els.passwordLengthInput.value = String(normalizePasswordLength(state.settings.passwordLength));
+  els.passwordUppercaseToggle.checked = state.settings.passwordUppercase !== false;
+  els.passwordNumbersToggle.checked = state.settings.passwordNumbers !== false;
+  els.passwordSymbolsToggle.checked = state.settings.passwordSymbols !== false;
+  els.passwordReadableToggle.checked = Boolean(state.settings.passwordReadable);
   els.fieldMappingInput.value = state.settings.customFieldMappings || '';
 }
 
@@ -788,7 +803,7 @@ async function generateIdentity(showStatus) {
   const address1 = `${rand(18, 998)} ${pick(country.streets)}`;
   const phone = country.phone();
   const postalCode = country.postal();
-  const accountPassword = createAccountPassword();
+  const accountPassword = createAccountPassword(state.settings);
   const identityProfile = createIdentityProfile({
     firstName,
     middleName,
@@ -1752,6 +1767,11 @@ async function saveSettingsFromControls() {
     syncProxyCountry: els.syncProxyCountryToggle.checked,
     fingerprintMasking: els.fingerprintMaskingToggle.checked,
     seed: els.seedInput.value || '',
+    passwordLength: normalizePasswordLength(els.passwordLengthInput.value),
+    passwordUppercase: els.passwordUppercaseToggle.checked,
+    passwordNumbers: els.passwordNumbersToggle.checked,
+    passwordSymbols: els.passwordSymbolsToggle.checked,
+    passwordReadable: els.passwordReadableToggle.checked,
   };
   hydrateControls();
   await persistSettings();
@@ -2652,20 +2672,44 @@ function createPassword() {
   return Array.from(bytes, value => chars[value % chars.length]).join('');
 }
 
-function createAccountPassword() {
-  const groups = [
-    'ABCDEFGHJKLMNPQRSTUVWXYZ',
-    'abcdefghijkmnopqrstuvwxyz',
-    '23456789',
-    '!@#$%',
-  ];
+function createAccountPassword(settings = state.settings) {
+  const length = normalizePasswordLength(settings.passwordLength);
+  const groups = buildPasswordGroups(settings);
   const allChars = groups.join('');
-  const bytes = new Uint8Array(16);
+  const bytes = new Uint8Array(Math.max(length, groups.length) + 8);
   crypto.getRandomValues(bytes);
 
   const required = groups.map((group, index) => group[bytes[index] % group.length]);
-  const rest = Array.from(bytes.slice(required.length), value => allChars[value % allChars.length]);
+  const rest = Array.from({ length: Math.max(0, length - required.length) }, (_, index) => {
+    const value = bytes[index + required.length] ?? rand(0, 255);
+    return allChars[value % allChars.length];
+  });
   return shuffle([...required, ...rest]).join('');
+}
+
+function normalizePasswordLength(value) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isFinite(number)) return 16;
+  return Math.min(32, Math.max(8, number));
+}
+
+function buildPasswordGroups(settings = state.settings) {
+  const readable = Boolean(settings.passwordReadable);
+  const groups = [
+    readable ? 'abcdefghijkmnopqrstuvwxyz' : 'abcdefghijklmnopqrstuvwxyz',
+  ];
+
+  if (settings.passwordUppercase !== false) {
+    groups.push(readable ? 'ABCDEFGHJKLMNPQRSTUVWXYZ' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+  }
+  if (settings.passwordNumbers !== false) {
+    groups.push(readable ? '23456789' : '0123456789');
+  }
+  if (settings.passwordSymbols !== false) {
+    groups.push(readable ? '-_@#' : '!@#$%^&*');
+  }
+
+  return groups;
 }
 
 function ensurePasswordFields() {

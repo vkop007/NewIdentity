@@ -450,6 +450,35 @@
           </div>
         </label>
 
+        <section class="settings-group-card">
+          <div class="settings-group-heading">
+            <span>Password rules</span>
+            <strong>Account password</strong>
+          </div>
+          <label class="control compact-control">
+            <span>Length</span>
+            <input id="passwordLengthInput" type="number" min="8" max="32" step="1" />
+          </label>
+          <div class="settings-mini-grid">
+            <label class="mini-switch">
+              <span>Uppercase</span>
+              <input id="passwordUppercaseToggle" type="checkbox" />
+            </label>
+            <label class="mini-switch">
+              <span>Numbers</span>
+              <input id="passwordNumbersToggle" type="checkbox" />
+            </label>
+            <label class="mini-switch">
+              <span>Symbols</span>
+              <input id="passwordSymbolsToggle" type="checkbox" />
+            </label>
+            <label class="mini-switch">
+              <span>Readable</span>
+              <input id="passwordReadableToggle" type="checkbox" />
+            </label>
+          </div>
+        </section>
+
         <label class="switch-card">
           <span>
             <strong>Save history</strong>
