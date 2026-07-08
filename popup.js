@@ -30,6 +30,7 @@ const DEFAULT_SETTINGS = {
   theme: 'system',
   previewBeforeFill: true,
   customFieldMappings: '',
+  syncProxyCountry: false,
 };
 
 const COUNTRY_OVERRIDES = {
@@ -533,6 +534,7 @@ const els = {
   cardAutoFillToggle: document.querySelector('#cardAutoFillToggle'),
   fillPreviewToggle: document.querySelector('#fillPreviewToggle'),
   antiFingerprintToggle: document.querySelector('#antiFingerprintToggle'),
+  syncProxyCountryToggle: document.querySelector('#syncProxyCountryToggle'),
   fingerprintMaskingToggle: document.querySelector('#fingerprintMaskingToggle'),
   seedInput: document.querySelector('#seedInput'),
   fieldMappingInput: document.querySelector('#fieldMappingInput'),
@@ -661,6 +663,7 @@ function bindEvents() {
   els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
   els.fillPreviewToggle.addEventListener('change', handleFillPreviewToggle);
   els.antiFingerprintToggle.addEventListener('change', handleAntiFingerprintToggle);
+  els.syncProxyCountryToggle.addEventListener('change', handleSyncProxyCountryToggle);
   els.fingerprintMaskingToggle.addEventListener('change', handleFingerprintMaskingToggle);
   els.themeSelect.addEventListener('change', handleThemeChange);
   els.seedInput.addEventListener('input', handleSeedInput);
@@ -672,10 +675,11 @@ function bindEvents() {
   els.confirmFillPreviewBtn.addEventListener('click', executeFillCurrentPage);
   els.cancelFillPreviewBtn.addEventListener('click', hideAutofillPreview);
 
-  els.countrySelect.addEventListener('change', () => {
+  els.countrySelect.addEventListener('change', async () => {
     state.settings.country = els.countrySelect.value;
-    persistSettings();
-    generateIdentity(true);
+    await persistSettings();
+    await generateIdentity(true);
+    await syncProxyCountryToIdentityCountry();
   });
 
   document.querySelectorAll('[data-copy]').forEach(button => {
@@ -738,6 +742,7 @@ function hydrateControls() {
   els.cardAutoFillToggle.checked = state.settings.cardAutoFill;
   els.fillPreviewToggle.checked = state.settings.previewBeforeFill !== false;
   els.antiFingerprintToggle.checked = state.settings.antiFingerprint;
+  els.syncProxyCountryToggle.checked = Boolean(state.settings.syncProxyCountry);
   els.fingerprintMaskingToggle.checked = state.settings.fingerprintMasking;
   els.seedInput.value = state.settings.seed || '';
   els.fieldMappingInput.value = state.settings.customFieldMappings || '';
@@ -1744,6 +1749,7 @@ async function saveSettingsFromControls() {
     previewBeforeFill: els.fillPreviewToggle.checked,
     customFieldMappings: els.fieldMappingInput.value || '',
     antiFingerprint: els.antiFingerprintToggle.checked,
+    syncProxyCountry: els.syncProxyCountryToggle.checked,
     fingerprintMasking: els.fingerprintMaskingToggle.checked,
     seed: els.seedInput.value || '',
   };
@@ -1835,6 +1841,41 @@ async function handleAntiFingerprintToggle() {
     await syncAutoFillPermissionState();
   }
   setStatus(state.settings.antiFingerprint ? 'Anti-fingerprinting is on.' : 'Anti-fingerprinting is off.', 'success');
+}
+
+async function handleSyncProxyCountryToggle() {
+  state.settings.syncProxyCountry = els.syncProxyCountryToggle.checked;
+  await persistSettings();
+  if (state.settings.syncProxyCountry) {
+    const synced = await syncProxyCountryToIdentityCountry({ showStatus: true });
+    setStatus(synced === false ? 'Proxy country matching is on. Sync will retry on the next country change.' : 'Proxy country matching is on.', synced === false ? 'error' : 'success');
+    return;
+  }
+  setStatus('Proxy country matching is off.', 'success');
+}
+
+async function syncProxyCountryToIdentityCountry({ showStatus = false } = {}) {
+  if (!state.settings.syncProxyCountry) return true;
+
+  const country = state.settings.country || DEFAULT_PROXY_COUNTRY;
+  if ((state.proxy?.country || DEFAULT_PROXY_COUNTRY) === country) return true;
+
+  try {
+    if (showStatus) setProxyStatus(`Matching proxy to ${getProxyCountryLabel(country)}...`, '');
+    const response = await sendProxyMessage('proxy:setCountry', { country });
+    if (!response?.ok) throw new Error(response?.error || 'Unable to sync proxy country.');
+    state.proxy = response.state;
+    renderProxy();
+    renderSettingsStatus();
+    if (showStatus) {
+      const count = state.proxy?.proxies?.length || 0;
+      setProxyStatus(count ? `Proxy routes now match ${getProxyCountryLabel(country)}.` : `No ${getProxyCountryLabel(country)} proxy routes found right now.`, count ? 'success' : 'error');
+    }
+    return true;
+  } catch (error) {
+    if (showStatus) setProxyStatus(error instanceof Error ? error.message : 'Unable to sync proxy country.', 'error');
+    return false;
+  }
 }
 
 async function handleFingerprintMaskingToggle() {
