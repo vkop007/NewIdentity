@@ -2738,3 +2738,10 @@ body {
 .mini-switch.full {
   grid-template-columns: minmax(0, 1fr) 22px;
 }
+
+.settings-help-text {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}

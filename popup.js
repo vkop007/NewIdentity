@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS = {
   ageMin: 21,
   ageMax: 58,
   includeMiddleName: true,
+  cardPinHash: '',
 };
 
 const COUNTRY_OVERRIDES = {
@@ -523,6 +524,7 @@ let state = {
   messageDetails: {},
   privateCard: null,
   cardRevealed: false,
+  cardUnlocked: false,
   activeTab: 'home',
   inboxRefreshTimer: null,
   proxy: null,
@@ -564,6 +566,10 @@ const els = {
   mailboxState: document.querySelector('#mailboxState'),
   copyLatestOtpBtn: document.querySelector('#copyLatestOtpBtn'),
   cardRevealBtn: document.querySelector('#cardRevealBtn'),
+  cardPinInput: document.querySelector('#cardPinInput'),
+  saveCardPinBtn: document.querySelector('#saveCardPinBtn'),
+  clearCardPinBtn: document.querySelector('#clearCardPinBtn'),
+  cardPinStatus: document.querySelector('#cardPinStatus'),
   cardSafetyStatus: document.querySelector('#cardSafetyStatus'),
   proxyRefreshBtn: document.querySelector('#proxyRefreshBtn'),
   proxyToggleBtn: document.querySelector('#proxyToggleBtn'),
@@ -669,6 +675,8 @@ function bindEvents() {
     event.stopPropagation();
     toggleCardReveal();
   });
+  els.saveCardPinBtn.addEventListener('click', saveCardPin);
+  els.clearCardPinBtn.addEventListener('click', clearCardPin);
   els.proxyRefreshBtn.addEventListener('click', () => refreshProxyList(true));
   els.proxyToggleBtn.addEventListener('click', toggleProxyConnection);
   els.proxyCountrySelect.addEventListener('change', handleProxyCountryChange);
@@ -771,6 +779,8 @@ function hydrateControls() {
   els.passwordSymbolsToggle.checked = state.settings.passwordSymbols !== false;
   els.passwordReadableToggle.checked = Boolean(state.settings.passwordReadable);
   els.fieldMappingInput.value = state.settings.customFieldMappings || '';
+  els.cardPinInput.value = '';
+  renderCardPinStatus();
 }
 
 function activateTab(tab) {
@@ -982,9 +992,32 @@ function getCardExpiryStatus(card) {
   };
 }
 
-function toggleCardReveal() {
+async function toggleCardReveal() {
+  if (!state.cardRevealed && !(await unlockPrivateCardIfNeeded())) return;
+
   state.cardRevealed = !state.cardRevealed;
   renderPrivateCard();
+}
+
+async function unlockPrivateCardIfNeeded() {
+  const hash = state.settings.cardPinHash || '';
+  if (!hash || state.cardUnlocked) return true;
+
+  const pin = window.prompt('Enter private card PIN');
+  if (!pin) {
+    setStatus('Private card reveal cancelled.', 'error');
+    return false;
+  }
+
+  const candidateHash = await hashCardPin(pin);
+  if (candidateHash !== hash) {
+    setStatus('Incorrect private card PIN.', 'error');
+    return false;
+  }
+
+  state.cardUnlocked = true;
+  setStatus('Private card unlocked for this popup session.', 'success');
+  return true;
 }
 
 function renderInbox() {
@@ -1798,6 +1831,51 @@ async function saveSettingsFromControls() {
 
 async function persistSettings() {
   await chrome.storage.local.set({ [STORAGE_KEYS.settings]: state.settings });
+}
+
+async function saveCardPin() {
+  const pin = String(els.cardPinInput.value || '').trim();
+  if (pin.length < 4) {
+    setStatus('Use at least 4 digits for the private card PIN.', 'error');
+    return;
+  }
+  if (!/^\d+$/.test(pin)) {
+    setStatus('Private card PIN must contain digits only.', 'error');
+    return;
+  }
+
+  state.settings.cardPinHash = await hashCardPin(pin);
+  state.cardUnlocked = false;
+  state.cardRevealed = false;
+  els.cardPinInput.value = '';
+  await persistSettings();
+  renderCardPinStatus();
+  renderPrivateCard();
+  setStatus('Private card reveal PIN saved.', 'success');
+}
+
+async function clearCardPin() {
+  state.settings.cardPinHash = '';
+  state.cardUnlocked = false;
+  els.cardPinInput.value = '';
+  await persistSettings();
+  renderCardPinStatus();
+  setStatus('Private card reveal PIN cleared.', 'success');
+}
+
+function renderCardPinStatus() {
+  if (!els.cardPinStatus) return;
+  const locked = Boolean(state.settings.cardPinHash);
+  els.cardPinStatus.textContent = locked
+    ? 'Reveal PIN is set. Card details require this PIN each popup session.'
+    : 'No reveal PIN set.';
+  els.clearCardPinBtn.disabled = !locked;
+}
+
+async function hashCardPin(pin) {
+  const input = new TextEncoder().encode(`new-identity-card-pin:${pin}`);
+  const digest = await crypto.subtle.digest('SHA-256', input);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function normalizeTheme(value) {

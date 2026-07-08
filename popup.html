@@ -546,6 +546,22 @@
           <input id="cardAutoFillToggle" type="checkbox" />
         </label>
 
+        <section class="settings-group-card">
+          <div class="settings-group-heading">
+            <span>Private card lock</span>
+            <strong>Reveal PIN</strong>
+          </div>
+          <label class="control compact-control">
+            <span>PIN</span>
+            <div class="seed-input-container">
+              <input id="cardPinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="Set 4+ digit PIN" />
+              <button class="ghost-button action-pill" id="saveCardPinBtn" type="button">Save</button>
+              <button class="ghost-button danger action-pill" id="clearCardPinBtn" type="button">Clear</button>
+            </div>
+          </label>
+          <small class="settings-help-text" id="cardPinStatus">No reveal PIN set.</small>
+        </section>
+
         <label class="switch-card">
           <span>
             <strong>Anti-fingerprinting</strong>
