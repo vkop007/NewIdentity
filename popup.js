@@ -31,6 +31,15 @@ const DEFAULT_SETTINGS = {
   previewBeforeFill: true,
   customFieldMappings: '',
   syncProxyCountry: false,
+  passwordLength: 16,
+  passwordUppercase: true,
+  passwordNumbers: true,
+  passwordSymbols: true,
+  passwordReadable: false,
+  ageMin: 21,
+  ageMax: 58,
+  includeMiddleName: true,
+  cardPinHash: '',
 };
 
 const COUNTRY_OVERRIDES = {
@@ -515,6 +524,7 @@ let state = {
   messageDetails: {},
   privateCard: null,
   cardRevealed: false,
+  cardUnlocked: false,
   activeTab: 'home',
   inboxRefreshTimer: null,
   proxy: null,
@@ -537,6 +547,14 @@ const els = {
   syncProxyCountryToggle: document.querySelector('#syncProxyCountryToggle'),
   fingerprintMaskingToggle: document.querySelector('#fingerprintMaskingToggle'),
   seedInput: document.querySelector('#seedInput'),
+  ageMinInput: document.querySelector('#ageMinInput'),
+  ageMaxInput: document.querySelector('#ageMaxInput'),
+  middleNameToggle: document.querySelector('#middleNameToggle'),
+  passwordLengthInput: document.querySelector('#passwordLengthInput'),
+  passwordUppercaseToggle: document.querySelector('#passwordUppercaseToggle'),
+  passwordNumbersToggle: document.querySelector('#passwordNumbersToggle'),
+  passwordSymbolsToggle: document.querySelector('#passwordSymbolsToggle'),
+  passwordReadableToggle: document.querySelector('#passwordReadableToggle'),
   fieldMappingInput: document.querySelector('#fieldMappingInput'),
   randomizeSeedBtn: document.querySelector('#randomizeSeedBtn'),
   statusLines: document.querySelectorAll('[data-status-line]'),
@@ -548,6 +566,10 @@ const els = {
   mailboxState: document.querySelector('#mailboxState'),
   copyLatestOtpBtn: document.querySelector('#copyLatestOtpBtn'),
   cardRevealBtn: document.querySelector('#cardRevealBtn'),
+  cardPinInput: document.querySelector('#cardPinInput'),
+  saveCardPinBtn: document.querySelector('#saveCardPinBtn'),
+  clearCardPinBtn: document.querySelector('#clearCardPinBtn'),
+  cardPinStatus: document.querySelector('#cardPinStatus'),
   cardSafetyStatus: document.querySelector('#cardSafetyStatus'),
   proxyRefreshBtn: document.querySelector('#proxyRefreshBtn'),
   proxyToggleBtn: document.querySelector('#proxyToggleBtn'),
@@ -653,6 +675,8 @@ function bindEvents() {
     event.stopPropagation();
     toggleCardReveal();
   });
+  els.saveCardPinBtn.addEventListener('click', saveCardPin);
+  els.clearCardPinBtn.addEventListener('click', clearCardPin);
   els.proxyRefreshBtn.addEventListener('click', () => refreshProxyList(true));
   els.proxyToggleBtn.addEventListener('click', toggleProxyConnection);
   els.proxyCountrySelect.addEventListener('change', handleProxyCountryChange);
@@ -736,6 +760,10 @@ function hydrateControls() {
   els.countrySelect.value = state.settings.country;
   els.themeSelect.value = normalizeTheme(state.settings.theme);
   els.nameStyleSelect.value = state.settings.nameStyle;
+  const ageRange = normalizeAgeRange(state.settings.ageMin, state.settings.ageMax);
+  els.ageMinInput.value = String(ageRange.min);
+  els.ageMaxInput.value = String(ageRange.max);
+  els.middleNameToggle.checked = state.settings.includeMiddleName !== false;
   els.saveHistoryToggle.checked = state.settings.saveHistory;
   els.autoCopyToggle.checked = state.settings.autoCopy;
   els.autoFillToggle.checked = state.settings.autoFill;
@@ -745,7 +773,14 @@ function hydrateControls() {
   els.syncProxyCountryToggle.checked = Boolean(state.settings.syncProxyCountry);
   els.fingerprintMaskingToggle.checked = state.settings.fingerprintMasking;
   els.seedInput.value = state.settings.seed || '';
+  els.passwordLengthInput.value = String(normalizePasswordLength(state.settings.passwordLength));
+  els.passwordUppercaseToggle.checked = state.settings.passwordUppercase !== false;
+  els.passwordNumbersToggle.checked = state.settings.passwordNumbers !== false;
+  els.passwordSymbolsToggle.checked = state.settings.passwordSymbols !== false;
+  els.passwordReadableToggle.checked = Boolean(state.settings.passwordReadable);
   els.fieldMappingInput.value = state.settings.customFieldMappings || '';
+  els.cardPinInput.value = '';
+  renderCardPinStatus();
 }
 
 function activateTab(tab) {
@@ -780,7 +815,8 @@ async function generateIdentity(showStatus) {
   const style = state.settings.nameStyle;
   const resolvedStyle = style === 'any' ? pick(['female', 'male']) : style;
   const firstName = pick(FIRST_NAMES[resolvedStyle] || [...FIRST_NAMES.female, ...FIRST_NAMES.male]);
-  const middleName = createMiddleName(resolvedStyle, firstName);
+  const includeMiddleName = state.settings.includeMiddleName !== false;
+  const middleName = includeMiddleName ? createMiddleName(resolvedStyle, firstName) : '';
   const lastName = pick(LAST_NAMES);
   const fullName = `${firstName} ${lastName}`;
   const city = pick(country.cities);
@@ -788,7 +824,7 @@ async function generateIdentity(showStatus) {
   const address1 = `${rand(18, 998)} ${pick(country.streets)}`;
   const phone = country.phone();
   const postalCode = country.postal();
-  const accountPassword = createAccountPassword();
+  const accountPassword = createAccountPassword(state.settings);
   const identityProfile = createIdentityProfile({
     firstName,
     middleName,
@@ -802,6 +838,10 @@ async function generateIdentity(showStatus) {
     postalCode,
     country: country.label,
     countryCode: state.settings.country,
+  }, {
+    ageMin: state.settings.ageMin,
+    ageMax: state.settings.ageMax,
+    includeMiddleName,
   });
 
   if (showStatus) setStatus('Creating a real temporary inbox...', '');
@@ -821,7 +861,7 @@ async function generateIdentity(showStatus) {
     middleName,
     lastName,
     fullName,
-    fullNameWithMiddle: `${firstName} ${middleName} ${lastName}`,
+    fullNameWithMiddle: includeMiddleName ? `${firstName} ${middleName} ${lastName}` : fullName,
     email: mailbox.address,
     password: accountPassword,
     confirmPassword: accountPassword,
@@ -952,9 +992,32 @@ function getCardExpiryStatus(card) {
   };
 }
 
-function toggleCardReveal() {
+async function toggleCardReveal() {
+  if (!state.cardRevealed && !(await unlockPrivateCardIfNeeded())) return;
+
   state.cardRevealed = !state.cardRevealed;
   renderPrivateCard();
+}
+
+async function unlockPrivateCardIfNeeded() {
+  const hash = state.settings.cardPinHash || '';
+  if (!hash || state.cardUnlocked) return true;
+
+  const pin = window.prompt('Enter private card PIN');
+  if (!pin) {
+    setStatus('Private card reveal cancelled.', 'error');
+    return false;
+  }
+
+  const candidateHash = await hashCardPin(pin);
+  if (candidateHash !== hash) {
+    setStatus('Incorrect private card PIN.', 'error');
+    return false;
+  }
+
+  state.cardUnlocked = true;
+  setStatus('Private card unlocked for this popup session.', 'success');
+  return true;
 }
 
 function renderInbox() {
@@ -1741,6 +1804,8 @@ async function saveSettingsFromControls() {
     ...state.settings,
     country: els.countrySelect.value,
     nameStyle: els.nameStyleSelect.value,
+    ...readAgeRangeControls(),
+    includeMiddleName: els.middleNameToggle.checked,
     theme: normalizeTheme(els.themeSelect.value),
     saveHistory: els.saveHistoryToggle.checked,
     autoCopy: els.autoCopyToggle.checked,
@@ -1752,6 +1817,11 @@ async function saveSettingsFromControls() {
     syncProxyCountry: els.syncProxyCountryToggle.checked,
     fingerprintMasking: els.fingerprintMaskingToggle.checked,
     seed: els.seedInput.value || '',
+    passwordLength: normalizePasswordLength(els.passwordLengthInput.value),
+    passwordUppercase: els.passwordUppercaseToggle.checked,
+    passwordNumbers: els.passwordNumbersToggle.checked,
+    passwordSymbols: els.passwordSymbolsToggle.checked,
+    passwordReadable: els.passwordReadableToggle.checked,
   };
   hydrateControls();
   await persistSettings();
@@ -1761,6 +1831,51 @@ async function saveSettingsFromControls() {
 
 async function persistSettings() {
   await chrome.storage.local.set({ [STORAGE_KEYS.settings]: state.settings });
+}
+
+async function saveCardPin() {
+  const pin = String(els.cardPinInput.value || '').trim();
+  if (pin.length < 4) {
+    setStatus('Use at least 4 digits for the private card PIN.', 'error');
+    return;
+  }
+  if (!/^\d+$/.test(pin)) {
+    setStatus('Private card PIN must contain digits only.', 'error');
+    return;
+  }
+
+  state.settings.cardPinHash = await hashCardPin(pin);
+  state.cardUnlocked = false;
+  state.cardRevealed = false;
+  els.cardPinInput.value = '';
+  await persistSettings();
+  renderCardPinStatus();
+  renderPrivateCard();
+  setStatus('Private card reveal PIN saved.', 'success');
+}
+
+async function clearCardPin() {
+  state.settings.cardPinHash = '';
+  state.cardUnlocked = false;
+  els.cardPinInput.value = '';
+  await persistSettings();
+  renderCardPinStatus();
+  setStatus('Private card reveal PIN cleared.', 'success');
+}
+
+function renderCardPinStatus() {
+  if (!els.cardPinStatus) return;
+  const locked = Boolean(state.settings.cardPinHash);
+  els.cardPinStatus.textContent = locked
+    ? 'Reveal PIN is set. Card details require this PIN each popup session.'
+    : 'No reveal PIN set.';
+  els.clearCardPinBtn.disabled = !locked;
+}
+
+async function hashCardPin(pin) {
+  const input = new TextEncoder().encode(`new-identity-card-pin:${pin}`);
+  const digest = await crypto.subtle.digest('SHA-256', input);
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function normalizeTheme(value) {
@@ -1780,6 +1895,21 @@ async function handleThemeChange() {
 
 function themeLabel(theme) {
   return theme === 'system' ? 'System' : theme === 'dark' ? 'Dark' : 'Light';
+}
+
+function readAgeRangeControls() {
+  return normalizeAgeRange(els.ageMinInput.value, els.ageMaxInput.value);
+}
+
+function normalizeAgeRange(minValue, maxValue) {
+  let min = Number.parseInt(minValue, 10);
+  let max = Number.parseInt(maxValue, 10);
+  if (!Number.isFinite(min)) min = 21;
+  if (!Number.isFinite(max)) max = 58;
+  min = Math.min(90, Math.max(18, min));
+  max = Math.min(90, Math.max(18, max));
+  if (min > max) [min, max] = [max, min];
+  return { ageMin: min, ageMax: max, min, max };
 }
 
 async function handleAutoFillToggle() {
@@ -2535,11 +2665,13 @@ function buildMailboxLocalPart(firstName, lastName, attempt) {
   return seed.replace(/^\.+|\.+$/g, '').slice(0, 54) || `user.${suffix}`;
 }
 
-function createIdentityProfile(identity) {
-  const birth = identity.dateOfBirth ? parseBirthDate(identity.dateOfBirth) : createBirthDate();
+function createIdentityProfile(identity, options = {}) {
+  const ageRange = normalizeAgeRange(options.ageMin, options.ageMax);
+  const birth = identity.dateOfBirth ? parseBirthDate(identity.dateOfBirth) : createBirthDate(ageRange.min, ageRange.max);
   const gender = identity.gender || inferGender(identity.firstName);
   const prefix = gender === 'Female' ? 'Ms.' : 'Mr.';
-  const middleName = identity.middleName || createMiddleName(gender.toLowerCase(), identity.firstName);
+  const includeMiddleName = options.includeMiddleName !== false;
+  const middleName = includeMiddleName ? (identity.middleName || createMiddleName(gender.toLowerCase(), identity.firstName)) : '';
   const address2 = identity.address2 || `${pick(ADDRESS2_PREFIXES)} ${rand(2, 998)}`;
   const company = identity.company || pick(COMPANY_NAMES);
   const jobTitle = identity.jobTitle || pick(JOB_TITLES);
@@ -2560,7 +2692,7 @@ function createIdentityProfile(identity) {
 
   return {
     middleName,
-    fullNameWithMiddle: `${identity.firstName} ${middleName} ${identity.lastName}`,
+    fullNameWithMiddle: includeMiddleName ? `${identity.firstName} ${middleName} ${identity.lastName}` : `${identity.firstName} ${identity.lastName}`,
     prefix,
     title: prefix,
     gender,
@@ -2608,9 +2740,10 @@ function createNationalPhone(phone) {
   return String(phone || '').replace(/^\+\d+\s*/, '').trim();
 }
 
-function createBirthDate() {
+function createBirthDate(minAge = 21, maxAge = 58) {
   const today = new Date();
-  const age = rand(21, 58);
+  const range = normalizeAgeRange(minAge, maxAge);
+  const age = rand(range.min, range.max);
   const year = today.getFullYear() - age;
   const month = rand(1, 12);
   const day = rand(1, 28);
@@ -2652,20 +2785,44 @@ function createPassword() {
   return Array.from(bytes, value => chars[value % chars.length]).join('');
 }
 
-function createAccountPassword() {
-  const groups = [
-    'ABCDEFGHJKLMNPQRSTUVWXYZ',
-    'abcdefghijkmnopqrstuvwxyz',
-    '23456789',
-    '!@#$%',
-  ];
+function createAccountPassword(settings = state.settings) {
+  const length = normalizePasswordLength(settings.passwordLength);
+  const groups = buildPasswordGroups(settings);
   const allChars = groups.join('');
-  const bytes = new Uint8Array(16);
+  const bytes = new Uint8Array(Math.max(length, groups.length) + 8);
   crypto.getRandomValues(bytes);
 
   const required = groups.map((group, index) => group[bytes[index] % group.length]);
-  const rest = Array.from(bytes.slice(required.length), value => allChars[value % allChars.length]);
+  const rest = Array.from({ length: Math.max(0, length - required.length) }, (_, index) => {
+    const value = bytes[index + required.length] ?? rand(0, 255);
+    return allChars[value % allChars.length];
+  });
   return shuffle([...required, ...rest]).join('');
+}
+
+function normalizePasswordLength(value) {
+  const number = Number.parseInt(value, 10);
+  if (!Number.isFinite(number)) return 16;
+  return Math.min(32, Math.max(8, number));
+}
+
+function buildPasswordGroups(settings = state.settings) {
+  const readable = Boolean(settings.passwordReadable);
+  const groups = [
+    readable ? 'abcdefghijkmnopqrstuvwxyz' : 'abcdefghijklmnopqrstuvwxyz',
+  ];
+
+  if (settings.passwordUppercase !== false) {
+    groups.push(readable ? 'ABCDEFGHJKLMNPQRSTUVWXYZ' : 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+  }
+  if (settings.passwordNumbers !== false) {
+    groups.push(readable ? '23456789' : '0123456789');
+  }
+  if (settings.passwordSymbols !== false) {
+    groups.push(readable ? '-_@#' : '!@#$%^&*');
+  }
+
+  return groups;
 }
 
 function ensurePasswordFields() {
