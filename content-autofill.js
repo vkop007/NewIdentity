@@ -1,5 +1,5 @@
 (() => {
-  if (window.__newIdentityAutofillLoaded && window.__newIdentityFillFields && window.__newIdentityFillOtp) return;
+  if (window.__newIdentityAutofillLoaded && window.__newIdentityFillFields && window.__newIdentityFillOtp && window.__newIdentityPreviewFillFields) return;
   window.__newIdentityAutofillLoaded = true;
 
   const STORAGE_KEYS = {
@@ -100,6 +100,43 @@
     'cardExpiryYear',
     'cardCvv',
   ]);
+  const VALID_FIELD_KEYS = new Set([
+    'fullName',
+    'fullNameWithMiddle',
+    'firstName',
+    'middleName',
+    'lastName',
+    'username',
+    'email',
+    'password',
+    'confirmPassword',
+    'prefix',
+    'gender',
+    'age',
+    'phone',
+    'phoneNational',
+    'address1',
+    'address2',
+    'addressBlock',
+    'city',
+    'state',
+    'postalCode',
+    'country',
+    'countryCode',
+    'dateOfBirth',
+    'birthDay',
+    'birthMonth',
+    'birthYear',
+    'company',
+    'jobTitle',
+    'website',
+    'cardName',
+    'cardNumber',
+    'cardExpiry',
+    'cardExpiryMonth',
+    'cardExpiryYear',
+    'cardCvv',
+  ]);
 
   let cachedIdentity = null;
   let cachedSettings = null;
@@ -109,6 +146,11 @@
   window.__newIdentityFillFields = (identity, options = {}) => fillFields(identity, {
     fillOnlyEmpty: !options.force,
     markFields: options.markFields !== false,
+    customFieldMappings: options.customFieldMappings || cachedSettings?.customFieldMappings || '',
+  });
+  window.__newIdentityPreviewFillFields = (identity, options = {}) => previewFillFields(identity, {
+    fillOnlyEmpty: !options.force,
+    customFieldMappings: options.customFieldMappings || cachedSettings?.customFieldMappings || '',
   });
   window.__newIdentityFillOtp = (code, options = {}) => fillOtpFields(code, {
     fillOnlyEmpty: !options.force,
@@ -157,17 +199,51 @@
     window.clearTimeout(pendingFill);
     pendingFill = window.setTimeout(() => {
       if (!cachedSettings?.autoFill || !cachedIdentity?.email) return;
-      fillFields(cachedIdentity, { fillOnlyEmpty: true, markFields: true });
+      fillFields(cachedIdentity, {
+        fillOnlyEmpty: true,
+        markFields: true,
+        customFieldMappings: cachedSettings?.customFieldMappings || '',
+      });
       if (cachedOtp?.code) fillOtpFields(cachedOtp.code, { fillOnlyEmpty: true, markFields: true });
     }, 120);
   }
 
   function fillFields(identity, options) {
-    const profile = normalizeIdentity(identity);
-    if (!profile.email && !profile.fullName) return 0;
-
-    const fields = Array.from(document.querySelectorAll('input, textarea, select'));
+    const plans = findFillPlans(identity, options);
     let filled = 0;
+
+    for (const plan of plans) {
+      if (!applyValue(plan.field, plan.candidates, plan.key)) continue;
+
+      if (options.markFields) plan.field.setAttribute(FIELD_MARK, 'true');
+      markSensitiveCardField(plan.field, plan.key, plan.profile);
+      dispatchFieldEvents(plan.field);
+      filled += 1;
+    }
+
+    return filled;
+  }
+
+  function previewFillFields(identity, options) {
+    return findFillPlans(identity, { ...options, preview: true })
+      .slice(0, 24)
+      .map((plan, index) => ({
+        index: index + 1,
+        key: plan.key,
+        label: plan.label,
+        previewValue: plan.previewValue,
+        tagName: plan.field.tagName.toLowerCase(),
+        inputType: plan.field.type || '',
+      }));
+  }
+
+  function findFillPlans(identity, options = {}) {
+    const profile = normalizeIdentity(identity);
+    if (!profile.email && !profile.fullName) return [];
+
+    const customMappings = parseCustomFieldMappings(options.customFieldMappings || '');
+    const fields = Array.from(document.querySelectorAll('input, textarea, select'));
+    const plans = [];
 
     for (const field of fields) {
       if (!canFillField(field, options)) continue;
@@ -175,20 +251,23 @@
       const descriptor = buildDescriptor(field);
       if (!descriptor.text || shouldSkipDescriptor(descriptor)) continue;
 
-      const key = detectFieldKey(field, descriptor);
+      const key = detectFieldKey(field, descriptor, customMappings);
       if (!key) continue;
 
       const candidates = getCandidateValues(profile, key, field);
       if (!candidates.length) continue;
-      if (!applyValue(field, candidates, key)) continue;
 
-      if (options.markFields) field.setAttribute(FIELD_MARK, 'true');
-      markSensitiveCardField(field, key, profile);
-      dispatchFieldEvents(field);
-      filled += 1;
+      plans.push({
+        field,
+        key,
+        candidates,
+        profile,
+        label: readableFieldLabel(field, descriptor),
+        previewValue: getPreviewValue(field, candidates, key),
+      });
     }
 
-    return filled;
+    return plans;
   }
 
   function fillOtpFields(rawCode, options) {
@@ -300,7 +379,7 @@
   }
 
   function canFillField(field, options) {
-    if (!options.fillOnlyEmpty && field.hasAttribute(FIELD_MARK)) field.removeAttribute(FIELD_MARK);
+    if (!options.preview && !options.fillOnlyEmpty && field.hasAttribute(FIELD_MARK)) field.removeAttribute(FIELD_MARK);
     if (options.fillOnlyEmpty && field.hasAttribute(FIELD_MARK)) return false;
     if (field.disabled || field.readOnly) return false;
     if (!isVisible(field)) return false;
@@ -369,7 +448,10 @@
     ].some(term => descriptor.text.includes(term) || descriptor.autocomplete.includes(term));
   }
 
-  function detectFieldKey(field, descriptor) {
+  function detectFieldKey(field, descriptor, customMappings = []) {
+    const customMatch = customMappings.find(rule => rule.phrase && descriptor.text.includes(rule.phrase));
+    if (customMatch) return customMatch.key;
+
     const autocompleteKey = keyFromAutocomplete(descriptor.autocomplete);
     if (autocompleteKey) return autocompleteKey;
     if (descriptor.inputType === 'email') return 'email';
@@ -404,6 +486,53 @@
     if (MONTH_NAMES.some(month => optionText.includes(month.toLowerCase()))) return 'birthMonth';
     if (hasAnyPhrase(optionText, ['mr', 'mrs', 'ms', 'miss'])) return 'prefix';
     return '';
+  }
+
+  function parseCustomFieldMappings(raw) {
+    return String(raw || '')
+      .split(/\n+/)
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#'))
+      .map(line => {
+        const match = line.match(/^(.+?)(?:=>|->|=|:)([A-Za-z][A-Za-z0-9]*)$/);
+        if (!match) return null;
+        const phrase = normalizeText(match[1]);
+        const key = match[2];
+        return phrase && VALID_FIELD_KEYS.has(key) ? { phrase, key } : null;
+      })
+      .filter(Boolean);
+  }
+
+  function readableFieldLabel(field, descriptor) {
+    const text = [
+      field.getAttribute('aria-label'),
+      field.getAttribute('placeholder'),
+      field.getAttribute('title'),
+      field.closest('label')?.textContent,
+      field.labels ? Array.from(field.labels).map(label => label.textContent).join(' ') : '',
+      field.name,
+      field.id,
+      field.autocomplete,
+      descriptor.inputType,
+      descriptor.tagName,
+    ].find(value => String(value || '').trim());
+
+    return String(text || 'Field')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+  }
+
+  function getPreviewValue(field, candidates, key) {
+    if (key === 'password' || key === 'confirmPassword') return 'Password ••••••••';
+    if (SENSITIVE_CARD_KEYS.has(key)) return key === 'cardCvv' ? 'CVV •••' : 'Card ••••';
+
+    if (field.tagName === 'SELECT') {
+      const option = findSelectOption(field, candidates, key) || fallbackSelectOption(field, key);
+      if (option) return String(option.textContent || option.value || '').trim();
+    }
+
+    return String(candidates[0] || '').slice(0, 80);
   }
 
   function getCandidateValues(identity, key, field) {

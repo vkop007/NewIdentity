@@ -28,6 +28,8 @@ const DEFAULT_SETTINGS = {
   seed: '',
   fingerprintMasking: true,
   theme: 'system',
+  previewBeforeFill: true,
+  customFieldMappings: '',
 };
 
 const COUNTRY_OVERRIDES = {
@@ -529,9 +531,11 @@ const els = {
   autoCopyToggle: document.querySelector('#autoCopyToggle'),
   autoFillToggle: document.querySelector('#autoFillToggle'),
   cardAutoFillToggle: document.querySelector('#cardAutoFillToggle'),
+  fillPreviewToggle: document.querySelector('#fillPreviewToggle'),
   antiFingerprintToggle: document.querySelector('#antiFingerprintToggle'),
   fingerprintMaskingToggle: document.querySelector('#fingerprintMaskingToggle'),
   seedInput: document.querySelector('#seedInput'),
+  fieldMappingInput: document.querySelector('#fieldMappingInput'),
   randomizeSeedBtn: document.querySelector('#randomizeSeedBtn'),
   statusLines: document.querySelectorAll('[data-status-line]'),
   messageList: document.querySelector('#messageList'),
@@ -570,6 +574,11 @@ const els = {
   exportCsvBtn: document.querySelector('#exportCsvBtn'),
   importJsonBtn: document.querySelector('#importJsonBtn'),
   importProfilesInput: document.querySelector('#importProfilesInput'),
+  autofillPreviewCard: document.querySelector('#autofillPreviewCard'),
+  autofillPreviewTitle: document.querySelector('#autofillPreviewTitle'),
+  autofillPreviewList: document.querySelector('#autofillPreviewList'),
+  confirmFillPreviewBtn: document.querySelector('#confirmFillPreviewBtn'),
+  cancelFillPreviewBtn: document.querySelector('#cancelFillPreviewBtn'),
 };
 
 document.addEventListener('DOMContentLoaded', init);
@@ -650,6 +659,7 @@ function bindEvents() {
   els.clearWebshareTokenBtn.addEventListener('click', clearWebshareToken);
   els.autoFillToggle.addEventListener('change', handleAutoFillToggle);
   els.cardAutoFillToggle.addEventListener('change', handleCardAutoFillToggle);
+  els.fillPreviewToggle.addEventListener('change', handleFillPreviewToggle);
   els.antiFingerprintToggle.addEventListener('change', handleAntiFingerprintToggle);
   els.fingerprintMaskingToggle.addEventListener('change', handleFingerprintMaskingToggle);
   els.themeSelect.addEventListener('change', handleThemeChange);
@@ -659,6 +669,8 @@ function bindEvents() {
   els.exportCsvBtn.addEventListener('click', exportProfilesCsv);
   els.importJsonBtn.addEventListener('click', () => els.importProfilesInput.click());
   els.importProfilesInput.addEventListener('change', importProfilesJson);
+  els.confirmFillPreviewBtn.addEventListener('click', executeFillCurrentPage);
+  els.cancelFillPreviewBtn.addEventListener('click', hideAutofillPreview);
 
   els.countrySelect.addEventListener('change', () => {
     state.settings.country = els.countrySelect.value;
@@ -724,9 +736,11 @@ function hydrateControls() {
   els.autoCopyToggle.checked = state.settings.autoCopy;
   els.autoFillToggle.checked = state.settings.autoFill;
   els.cardAutoFillToggle.checked = state.settings.cardAutoFill;
+  els.fillPreviewToggle.checked = state.settings.previewBeforeFill !== false;
   els.antiFingerprintToggle.checked = state.settings.antiFingerprint;
   els.fingerprintMaskingToggle.checked = state.settings.fingerprintMasking;
   els.seedInput.value = state.settings.seed || '';
+  els.fieldMappingInput.value = state.settings.customFieldMappings || '';
 }
 
 function activateTab(tab) {
@@ -1660,6 +1674,8 @@ async function saveSettingsFromControls() {
     autoCopy: els.autoCopyToggle.checked,
     autoFill: state.settings.autoFill,
     cardAutoFill: els.cardAutoFillToggle.checked,
+    previewBeforeFill: els.fillPreviewToggle.checked,
+    customFieldMappings: els.fieldMappingInput.value || '',
     antiFingerprint: els.antiFingerprintToggle.checked,
     fingerprintMasking: els.fingerprintMaskingToggle.checked,
     seed: els.seedInput.value || '',
@@ -1736,6 +1752,13 @@ async function handleCardAutoFillToggle() {
   await persistSettings();
   renderSettingsStatus();
   setStatus(state.settings.cardAutoFill ? 'Card autofill is on for manual Fill form.' : 'Card autofill is off.', 'success');
+}
+
+async function handleFillPreviewToggle() {
+  state.settings.previewBeforeFill = els.fillPreviewToggle.checked;
+  await persistSettings();
+  if (!state.settings.previewBeforeFill) hideAutofillPreview();
+  setStatus(state.settings.previewBeforeFill ? 'Autofill preview is on.' : 'Autofill preview is off.', 'success');
 }
 
 async function handleAntiFingerprintToggle() {
@@ -2051,26 +2074,100 @@ async function copyText(text, message) {
 async function fillCurrentPage() {
   if (!state.identity) return;
 
+  if (state.settings.previewBeforeFill !== false) {
+    await previewCurrentPageFill();
+    return;
+  }
+
+  await executeFillCurrentPage();
+}
+
+async function previewCurrentPageFill() {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) throw new Error('No active tab found.');
-
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id, allFrames: true },
-      files: ['content-autofill.js'],
-    });
-
+    const tab = await prepareActiveTabForAutofill();
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
-      func: identity => window.__newIdentityFillFields?.(identity, { force: true }) || 0,
-      args: [buildFillIdentity()],
+      func: (identity, options) => window.__newIdentityPreviewFillFields?.(identity, options) || [],
+      args: [buildFillIdentity(), buildAutofillOptions()],
+    });
+    const matches = results.flatMap(item => Array.isArray(item.result) ? item.result : []);
+    renderAutofillPreview(matches);
+    setStatus(matches.length ? `Preview found ${matches.length} matching field${matches.length === 1 ? '' : 's'}.` : 'No matching fields found.', matches.length ? 'success' : 'error');
+  } catch (error) {
+    hideAutofillPreview();
+    setStatus(error instanceof Error ? error.message : 'Unable to preview this page.', 'error');
+  }
+}
+
+async function executeFillCurrentPage() {
+  if (!state.identity) return;
+
+  try {
+    const tab = await prepareActiveTabForAutofill();
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id, allFrames: true },
+      func: (identity, options) => window.__newIdentityFillFields?.(identity, options) || 0,
+      args: [buildFillIdentity(), buildAutofillOptions()],
     });
     const filled = results.reduce((total, item) => total + Number(item.result || 0), 0);
 
+    hideAutofillPreview();
     setStatus(filled > 0 ? `Filled ${filled} field${filled === 1 ? '' : 's'} on this page.` : 'No matching fields found.', filled > 0 ? 'success' : 'error');
   } catch (error) {
     setStatus(error instanceof Error ? error.message : 'Unable to fill this page.', 'error');
   }
+}
+
+async function prepareActiveTabForAutofill() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id) throw new Error('No active tab found.');
+
+  await chrome.scripting.executeScript({
+    target: { tabId: tab.id, allFrames: true },
+    files: ['content-autofill.js'],
+  });
+
+  return tab;
+}
+
+function buildAutofillOptions() {
+  return {
+    force: true,
+    customFieldMappings: state.settings.customFieldMappings || '',
+  };
+}
+
+function renderAutofillPreview(matches) {
+  els.autofillPreviewCard.hidden = false;
+  els.autofillPreviewTitle.textContent = matches.length
+    ? `${matches.length} matched field${matches.length === 1 ? '' : 's'}`
+    : 'No matches found';
+  els.confirmFillPreviewBtn.disabled = !matches.length;
+  els.autofillPreviewList.replaceChildren(...(matches.length ? matches.slice(0, 12).map(createAutofillPreviewItem) : [emptyCard('No matching fields', 'Try adding a custom field mapping in Settings, then preview again.', 'empty')]));
+}
+
+function createAutofillPreviewItem(match) {
+  const item = document.createElement('div');
+  item.className = 'autofill-preview-item';
+
+  const copy = document.createElement('div');
+  const label = document.createElement('strong');
+  label.textContent = match.label || 'Unnamed field';
+  const meta = document.createElement('small');
+  meta.textContent = labelForKey(match.key || '') || match.key || 'Profile field';
+  copy.append(label, meta);
+
+  const value = document.createElement('code');
+  value.textContent = match.previewValue || 'Ready';
+
+  item.append(copy, value);
+  return item;
+}
+
+function hideAutofillPreview() {
+  els.autofillPreviewCard.hidden = true;
+  els.autofillPreviewList.replaceChildren();
+  els.confirmFillPreviewBtn.disabled = false;
 }
 
 function buildFillIdentity() {
