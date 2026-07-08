@@ -1535,6 +1535,8 @@ function createProxyRouteButton(proxy, currentProxyId) {
   checked.textContent = formatProxyTime(proxy.lastChecked);
   header.append(copy, checked);
 
+  const quality = createProxyQualityRow(proxy);
+
   const meta = document.createElement('div');
   meta.className = 'proxy-route-meta';
   [
@@ -1553,8 +1555,28 @@ function createProxyRouteButton(proxy, currentProxyId) {
     meta.append(chip);
   });
 
-  button.append(header, meta);
+  button.append(header, quality, meta);
   return button;
+}
+
+function createProxyQualityRow(proxy) {
+  const row = document.createElement('div');
+  row.className = 'proxy-quality-row';
+
+  getProxyQualityBadges(proxy).forEach(item => {
+    const badge = document.createElement('span');
+    badge.className = `proxy-quality-badge ${item.tone}`.trim();
+
+    const label = document.createElement('small');
+    label.textContent = item.label;
+    const value = document.createElement('strong');
+    value.textContent = item.value;
+
+    badge.append(label, value);
+    row.append(badge);
+  });
+
+  return row;
 }
 
 function setProxyBusy(isBusy) {
@@ -1646,6 +1668,51 @@ function formatProxyMetric(value, suffix) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return '';
   return `${Math.round(number)} ${suffix}`;
+}
+
+function getProxyQualityBadges(proxy) {
+  return [
+    getProxySpeedQuality(proxy),
+    getProxyReliabilityQuality(proxy),
+    getProxyPrivacyQuality(proxy),
+  ];
+}
+
+function getProxySpeedQuality(proxy) {
+  const speed = Number(proxy.responseTime || proxy.latency || 0);
+  if (!Number.isFinite(speed) || speed <= 0) {
+    return { label: 'Speed', value: 'Unknown', tone: 'neutral' };
+  }
+  if (speed <= 650) return { label: 'Speed', value: `Fast · ${Math.round(speed)}ms`, tone: 'good' };
+  if (speed <= 1500) return { label: 'Speed', value: `OK · ${Math.round(speed)}ms`, tone: 'warn' };
+  return { label: 'Speed', value: `Slow · ${Math.round(speed)}ms`, tone: 'bad' };
+}
+
+function getProxyReliabilityQuality(proxy) {
+  const uptime = Number(proxy.uptime || 0);
+  if (!Number.isFinite(uptime) || uptime <= 0) {
+    return { label: 'Reliability', value: proxy.provider === 'Webshare Free' ? 'Verified' : 'Unknown', tone: proxy.provider === 'Webshare Free' ? 'good' : 'neutral' };
+  }
+  if (uptime >= 90) return { label: 'Reliability', value: `${Math.round(uptime)}% High`, tone: 'good' };
+  if (uptime >= 60) return { label: 'Reliability', value: `${Math.round(uptime)}% Medium`, tone: 'warn' };
+  return { label: 'Reliability', value: `${Math.round(uptime)}% Low`, tone: 'bad' };
+}
+
+function getProxyPrivacyQuality(proxy) {
+  const level = String(proxy.anonymityLevel || '').toLowerCase();
+  if (proxy.authenticated || level.includes('authenticated')) {
+    return { label: 'Privacy', value: 'Private auth', tone: 'good' };
+  }
+  if (level.includes('elite') || level.includes('anonymous')) {
+    return { label: 'Privacy', value: 'Anonymous', tone: 'good' };
+  }
+  if (proxy.provider === 'ProxyScrape') {
+    return { label: 'Privacy', value: 'Anonymous', tone: 'good' };
+  }
+  if (level.includes('transparent')) {
+    return { label: 'Privacy', value: 'Transparent', tone: 'bad' };
+  }
+  return { label: 'Privacy', value: 'Unknown', tone: 'neutral' };
 }
 
 function formatProxyTime(value) {
