@@ -36,6 +36,9 @@ const DEFAULT_SETTINGS = {
   passwordNumbers: true,
   passwordSymbols: true,
   passwordReadable: false,
+  ageMin: 21,
+  ageMax: 58,
+  includeMiddleName: true,
 };
 
 const COUNTRY_OVERRIDES = {
@@ -542,6 +545,9 @@ const els = {
   syncProxyCountryToggle: document.querySelector('#syncProxyCountryToggle'),
   fingerprintMaskingToggle: document.querySelector('#fingerprintMaskingToggle'),
   seedInput: document.querySelector('#seedInput'),
+  ageMinInput: document.querySelector('#ageMinInput'),
+  ageMaxInput: document.querySelector('#ageMaxInput'),
+  middleNameToggle: document.querySelector('#middleNameToggle'),
   passwordLengthInput: document.querySelector('#passwordLengthInput'),
   passwordUppercaseToggle: document.querySelector('#passwordUppercaseToggle'),
   passwordNumbersToggle: document.querySelector('#passwordNumbersToggle'),
@@ -746,6 +752,10 @@ function hydrateControls() {
   els.countrySelect.value = state.settings.country;
   els.themeSelect.value = normalizeTheme(state.settings.theme);
   els.nameStyleSelect.value = state.settings.nameStyle;
+  const ageRange = normalizeAgeRange(state.settings.ageMin, state.settings.ageMax);
+  els.ageMinInput.value = String(ageRange.min);
+  els.ageMaxInput.value = String(ageRange.max);
+  els.middleNameToggle.checked = state.settings.includeMiddleName !== false;
   els.saveHistoryToggle.checked = state.settings.saveHistory;
   els.autoCopyToggle.checked = state.settings.autoCopy;
   els.autoFillToggle.checked = state.settings.autoFill;
@@ -795,7 +805,8 @@ async function generateIdentity(showStatus) {
   const style = state.settings.nameStyle;
   const resolvedStyle = style === 'any' ? pick(['female', 'male']) : style;
   const firstName = pick(FIRST_NAMES[resolvedStyle] || [...FIRST_NAMES.female, ...FIRST_NAMES.male]);
-  const middleName = createMiddleName(resolvedStyle, firstName);
+  const includeMiddleName = state.settings.includeMiddleName !== false;
+  const middleName = includeMiddleName ? createMiddleName(resolvedStyle, firstName) : '';
   const lastName = pick(LAST_NAMES);
   const fullName = `${firstName} ${lastName}`;
   const city = pick(country.cities);
@@ -817,6 +828,10 @@ async function generateIdentity(showStatus) {
     postalCode,
     country: country.label,
     countryCode: state.settings.country,
+  }, {
+    ageMin: state.settings.ageMin,
+    ageMax: state.settings.ageMax,
+    includeMiddleName,
   });
 
   if (showStatus) setStatus('Creating a real temporary inbox...', '');
@@ -836,7 +851,7 @@ async function generateIdentity(showStatus) {
     middleName,
     lastName,
     fullName,
-    fullNameWithMiddle: `${firstName} ${middleName} ${lastName}`,
+    fullNameWithMiddle: includeMiddleName ? `${firstName} ${middleName} ${lastName}` : fullName,
     email: mailbox.address,
     password: accountPassword,
     confirmPassword: accountPassword,
@@ -1756,6 +1771,8 @@ async function saveSettingsFromControls() {
     ...state.settings,
     country: els.countrySelect.value,
     nameStyle: els.nameStyleSelect.value,
+    ...readAgeRangeControls(),
+    includeMiddleName: els.middleNameToggle.checked,
     theme: normalizeTheme(els.themeSelect.value),
     saveHistory: els.saveHistoryToggle.checked,
     autoCopy: els.autoCopyToggle.checked,
@@ -1800,6 +1817,21 @@ async function handleThemeChange() {
 
 function themeLabel(theme) {
   return theme === 'system' ? 'System' : theme === 'dark' ? 'Dark' : 'Light';
+}
+
+function readAgeRangeControls() {
+  return normalizeAgeRange(els.ageMinInput.value, els.ageMaxInput.value);
+}
+
+function normalizeAgeRange(minValue, maxValue) {
+  let min = Number.parseInt(minValue, 10);
+  let max = Number.parseInt(maxValue, 10);
+  if (!Number.isFinite(min)) min = 21;
+  if (!Number.isFinite(max)) max = 58;
+  min = Math.min(90, Math.max(18, min));
+  max = Math.min(90, Math.max(18, max));
+  if (min > max) [min, max] = [max, min];
+  return { ageMin: min, ageMax: max, min, max };
 }
 
 async function handleAutoFillToggle() {
@@ -2555,11 +2587,13 @@ function buildMailboxLocalPart(firstName, lastName, attempt) {
   return seed.replace(/^\.+|\.+$/g, '').slice(0, 54) || `user.${suffix}`;
 }
 
-function createIdentityProfile(identity) {
-  const birth = identity.dateOfBirth ? parseBirthDate(identity.dateOfBirth) : createBirthDate();
+function createIdentityProfile(identity, options = {}) {
+  const ageRange = normalizeAgeRange(options.ageMin, options.ageMax);
+  const birth = identity.dateOfBirth ? parseBirthDate(identity.dateOfBirth) : createBirthDate(ageRange.min, ageRange.max);
   const gender = identity.gender || inferGender(identity.firstName);
   const prefix = gender === 'Female' ? 'Ms.' : 'Mr.';
-  const middleName = identity.middleName || createMiddleName(gender.toLowerCase(), identity.firstName);
+  const includeMiddleName = options.includeMiddleName !== false;
+  const middleName = includeMiddleName ? (identity.middleName || createMiddleName(gender.toLowerCase(), identity.firstName)) : '';
   const address2 = identity.address2 || `${pick(ADDRESS2_PREFIXES)} ${rand(2, 998)}`;
   const company = identity.company || pick(COMPANY_NAMES);
   const jobTitle = identity.jobTitle || pick(JOB_TITLES);
@@ -2580,7 +2614,7 @@ function createIdentityProfile(identity) {
 
   return {
     middleName,
-    fullNameWithMiddle: `${identity.firstName} ${middleName} ${identity.lastName}`,
+    fullNameWithMiddle: includeMiddleName ? `${identity.firstName} ${middleName} ${identity.lastName}` : `${identity.firstName} ${identity.lastName}`,
     prefix,
     title: prefix,
     gender,
@@ -2628,9 +2662,10 @@ function createNationalPhone(phone) {
   return String(phone || '').replace(/^\+\d+\s*/, '').trim();
 }
 
-function createBirthDate() {
+function createBirthDate(minAge = 21, maxAge = 58) {
   const today = new Date();
-  const age = rand(21, 58);
+  const range = normalizeAgeRange(minAge, maxAge);
+  const age = rand(range.min, range.max);
   const year = today.getFullYear() - age;
   const month = rand(1, 12);
   const day = rand(1, 28);

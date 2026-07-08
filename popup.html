@@ -442,6 +442,27 @@
           </select>
         </label>
 
+        <section class="settings-group-card">
+          <div class="settings-group-heading">
+            <span>Generation defaults</span>
+            <strong>Profile preferences</strong>
+          </div>
+          <div class="settings-range-grid">
+            <label class="control compact-control">
+              <span>Min age</span>
+              <input id="ageMinInput" type="number" min="18" max="90" step="1" />
+            </label>
+            <label class="control compact-control">
+              <span>Max age</span>
+              <input id="ageMaxInput" type="number" min="18" max="90" step="1" />
+            </label>
+          </div>
+          <label class="mini-switch full">
+            <span>Include middle name</span>
+            <input id="middleNameToggle" type="checkbox" />
+          </label>
+        </section>
+
         <label class="control">
           <span>Generation seed</span>
           <div class="seed-input-container">
