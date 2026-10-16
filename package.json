@@ -3,9 +3,31 @@
   "version": "1.0.0",
   "private": true,
   "description": "Chrome MV3 extension for generating test identities with a temporary inbox.",
+  "license": "MIT",
+  "author": "VK",
+  "homepage": "https://github.com/vkop007/NewIdentity#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vkop007/NewIdentity.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vkop007/NewIdentity/issues"
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "test-data",
+    "fake-identity",
+    "temporary-email",
+    "autofill",
+    "qa"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "scripts": {
     "check": "node scripts/verify-extension.mjs",
-    "package": "npm run check && mkdir -p dist && zip -qr dist/new-identity-1.0.0.zip manifest.json background.js popup.html popup.css popup.js content-autofill.js content-spoof.js icons"
+    "package": "npm run check && mkdir -p dist && zip -qr dist/new-identity-$npm_package_version.zip manifest.json background.js popup.html popup.css popup.js content-autofill.js content-spoof.js icons"
   }
 }

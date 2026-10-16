@@ -84,6 +84,14 @@ function checkManifest(manifest) {
   }
 }
 
+function checkPackageVersion(manifest) {
+  const packageJson = JSON.parse(readText('package.json'));
+  assert(
+    packageJson.version === manifest.version,
+    `package.json version (${packageJson.version}) must match manifest.json version (${manifest.version}).`,
+  );
+}
+
 function checkPopupHtml() {
   const html = readText('popup.html');
   assert(html.includes('<link rel="stylesheet" href="popup.css"'), 'popup.html must load popup.css.');
@@ -106,6 +114,7 @@ for (const file of requiredFiles) {
 
 const manifest = parseManifest();
 checkManifest(manifest);
+checkPackageVersion(manifest);
 checkPopupHtml();
 checkJavaScript('background.js');
 checkJavaScript('popup.js');

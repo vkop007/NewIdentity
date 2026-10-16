@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest an idea or improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe the use case. For example, "When testing X, I always have to Y..."
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you imagine it working?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and this hasn't been requested yet.
+          required: true
+        - label: This feature is meant for testing, QA, or personal privacy (see Responsible use in the README).
+          required: true
+        - label: I'd be willing to open a pull request for this.

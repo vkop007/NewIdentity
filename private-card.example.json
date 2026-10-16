@@ -1,0 +1,8 @@
+{
+  "paymentCard": {
+    "number": "4242424242424242",
+    "expiryMonth": "12",
+    "expiryYear": "2030",
+    "cvv": "123"
+  }
+}
